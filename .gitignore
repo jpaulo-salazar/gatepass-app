@@ -1,0 +1,19 @@
+# Environment (contains DB password – do not commit)
+backend/.env
+
+# Python
+backend/venv/
+backend/**/__pycache__/
+*.pyc
+
+# Node
+frontend/node_modules/
+
+# Build output
+frontend/dist/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
