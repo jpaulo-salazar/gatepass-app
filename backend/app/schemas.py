@@ -92,11 +92,13 @@ class GatePassResponse(BaseModel):
     time_in: Optional[str]
     status: Optional[str] = None
     rejected_remarks: Optional[str] = None
+    date_approved: Optional[date] = None
     items: List[GatePassItemResponse]
 
 class GatePassStatusUpdate(BaseModel):
     status: str
     rejected_remarks: Optional[str] = None
+    approved_by: Optional[str] = None  # set when admin approves (e.g. current user full name)
 
 
 class LoginRequest(BaseModel):

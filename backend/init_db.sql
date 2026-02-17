@@ -31,7 +31,9 @@ CREATE TABLE products (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+
 -- Gate passes (header and metadata)
+DROP TABLE IF EXISTS gate_passes;
 CREATE TABLE gate_passes (
     id INT AUTO_INCREMENT PRIMARY KEY,
     gp_number VARCHAR(50) UNIQUE NOT NULL,
@@ -53,10 +55,12 @@ CREATE TABLE gate_passes (
     approved_by VARCHAR(255),
     time_out VARCHAR(20),
     time_in VARCHAR(20),
+    date_approved DATE NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Gate pass line items
+DROP TABLE IF EXISTS gate_pass_items;
 CREATE TABLE gate_pass_items (
     id INT AUTO_INCREMENT PRIMARY KEY,
     gate_pass_id INT NOT NULL,

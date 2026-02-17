@@ -1,0 +1,223 @@
+/* Paper-style gate pass print layout - CHERENZ GLOBAL MFG. INC. style */
+.gatepass-print-root {
+  padding: 12px;
+  background: #f0f0f0;
+  min-height: 100vh;
+}
+
+.gatepass-print-paper {
+  max-width: 210mm;
+  margin: 0 auto;
+  background: #fff;
+  padding: 14mm 16mm;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  font-family: 'Times New Roman', Georgia, serif;
+  font-size: 11pt;
+  color: #000;
+}
+
+.gp-print-header {
+  text-align: center;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #333;
+  padding-bottom: 8px;
+}
+
+.gp-print-company {
+  margin: 0 0 2px 0;
+  font-size: 14pt;
+  font-weight: bold;
+  letter-spacing: 0.02em;
+}
+
+.gp-print-title {
+  margin: 0 0 10px 0;
+  font-size: 13pt;
+  font-weight: bold;
+}
+
+.gp-print-number-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.gp-print-label {
+  font-size: 10pt;
+  color: #444;
+}
+
+.gp-print-value {
+  font-weight: bold;
+  margin-right: 12px;
+}
+
+.gp-print-gpno {
+  font-size: 12pt;
+}
+
+.gp-print-date-label {
+  margin-left: 8px;
+}
+
+.gp-print-barcode-wrap {
+  display: flex;
+  justify-content: center;
+  margin-top: 6px;
+}
+
+.gp-print-barcode {
+  max-width: 100%;
+  height: auto;
+}
+
+.gp-print-section {
+  margin-bottom: 10px;
+}
+
+.gp-print-auth {
+  margin: 0 0 4px 0;
+}
+
+.gp-print-label-inline {
+  font-size: 9pt;
+  color: #555;
+  margin: 0 0 6px 0;
+}
+
+.gp-print-purpose {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  font-size: 10pt;
+}
+
+.gp-print-purpose .gp-print-checked::before {
+  content: '☑ ';
+}
+
+.gp-print-row2 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+}
+
+.gp-print-items {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 10pt;
+}
+
+.gp-print-items th,
+.gp-print-items td {
+  border: 1px solid #333;
+  padding: 5px 8px;
+  text-align: left;
+}
+
+.gp-print-items th {
+  background: #f5f5f5;
+  font-weight: bold;
+}
+
+.gp-print-signatures {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin: 14px 0 8px 0;
+}
+
+.gp-print-sig-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gp-print-sig-label {
+  font-size: 9pt;
+  font-weight: bold;
+}
+
+.gp-print-sig-line {
+  border-bottom: 1px solid #000;
+  min-height: 18px;
+  font-size: 10pt;
+}
+
+.gp-print-sig-sub {
+  font-size: 8pt;
+  color: #555;
+}
+
+.gp-print-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  margin-bottom: 14px;
+  font-size: 10pt;
+}
+
+.gp-print-departure-arrival {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #333;
+}
+
+.gp-print-block {
+  font-size: 10pt;
+}
+
+.gp-print-block strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.gp-print-block p {
+  margin: 2px 0;
+}
+
+/* Release tag - shown on guard re-print */
+.gp-print-release-tag {
+  margin-top: 20px;
+  padding: 14px;
+  border: 2px solid #059669;
+  background: #ecfdf5;
+  font-size: 11pt;
+}
+
+.gp-print-release-title {
+  font-weight: bold;
+  font-size: 12pt;
+  margin-bottom: 8px;
+  color: #047857;
+}
+
+.gp-print-release-tag p {
+  margin: 4px 0;
+}
+
+/* Print media: hide background, ensure clean paper look */
+@media print {
+  .gatepass-print-root {
+    padding: 0;
+    background: #fff;
+  }
+
+  .gatepass-print-paper {
+    box-shadow: none;
+    max-width: 100%;
+    padding: 10mm 12mm;
+  }
+
+  .gatepass-print-paper * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

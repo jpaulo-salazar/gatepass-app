@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Html5Qrcode } from 'html5-qrcode';
-import { getGatePassByNumber, updateGatePassStatus } from '../api';
+import { getGatePassByNumber } from '../api';
 import './Scan.css';
 
 const AUTO_LOOKUP_DELAY_MS = 500;
@@ -12,9 +12,7 @@ export default function Scan() {
   const [error, setError] = useState('');
   const [gatePass, setGatePass] = useState(null);
   const [manualGp, setManualGp] = useState(() => location.state?.lookupGp || '');
-  const [rejectRemarks, setRejectRemarks] = useState('');
-  const [showRejectRemarks, setShowRejectRemarks] = useState(false);
-  const [statusLoading, setStatusLoading] = useState(false);
+  const navigate = useNavigate();
   const scannerRef = useRef(null);
   const html5QrRef = useRef(null);
   const autoLookupTimerRef = useRef(null);
@@ -88,40 +86,9 @@ export default function Scan() {
     fetchAndShow(manualGp);
   }
 
-  async function handleApprove() {
+  function handlePrintRelease() {
     if (!gatePass) return;
-    setStatusLoading(true);
-    setError('');
-    try {
-      const updated = await updateGatePassStatus(gatePass.id, { status: 'approved' });
-      setGatePass(updated);
-      setShowRejectRemarks(false);
-      setRejectRemarks('');
-    } catch (e) {
-      setError(e.message || 'Failed to approve');
-    } finally {
-      setStatusLoading(false);
-    }
-  }
-
-  async function handleReject() {
-    if (!gatePass) return;
-    if (!showRejectRemarks) {
-      setShowRejectRemarks(true);
-      return;
-    }
-    setStatusLoading(true);
-    setError('');
-    try {
-      const updated = await updateGatePassStatus(gatePass.id, { status: 'rejected', rejected_remarks: rejectRemarks || null });
-      setGatePass(updated);
-      setShowRejectRemarks(false);
-      setRejectRemarks('');
-    } catch (e) {
-      setError(e.message || 'Failed to reject');
-    } finally {
-      setStatusLoading(false);
-    }
+    navigate('/print', { state: { gatePass, variant: 'release' } });
   }
 
   useEffect(() => {
@@ -140,7 +107,7 @@ export default function Scan() {
   return (
     <div className="scan-page">
       <h1>Scan Gate Pass Barcode</h1>
-      <p className="scan-desc">Focus the field below and scan the barcode—details load automatically. You can also type the GP number and press Enter or click Look up.</p>
+      <p className="scan-desc">Guard: scan the barcode (or type GP number) to view the gate pass. If approved, you can print the release tag with approved-by details.</p>
 
       {error && <div className="scan-error">{error}</div>}
 
@@ -190,24 +157,16 @@ export default function Scan() {
             <p><strong>Time Out:</strong> {gatePass.time_out || '—'} <strong>Time In:</strong> {gatePass.time_in || '—'}</p>
             {gatePass.rejected_remarks && <p><strong>Rejection remarks:</strong> {gatePass.rejected_remarks}</p>}
           </div>
-          {(gatePass.status === 'pending' || !gatePass.status) && (
+          {(gatePass.status === 'approved') && (
             <div className="gp-actions">
-              {!showRejectRemarks ? (
-                <>
-                  <button type="button" onClick={handleApprove} className="btn-primary" disabled={statusLoading}>Approve</button>
-                  <button type="button" onClick={handleReject} className="btn-reject" disabled={statusLoading}>Reject</button>
-                </>
-              ) : (
-                <div className="reject-remarks-wrap">
-                  <label>Remarks (reason for rejection):</label>
-                  <textarea value={rejectRemarks} onChange={(e) => setRejectRemarks(e.target.value)} placeholder="Enter remarks..." rows={3} />
-                  <div className="reject-remarks-buttons">
-                    <button type="button" onClick={handleReject} className="btn-reject" disabled={statusLoading}>Confirm Reject</button>
-                    <button type="button" onClick={() => { setShowRejectRemarks(false); setRejectRemarks(''); }} className="btn-secondary">Cancel</button>
-                  </div>
-                </div>
-              )}
+              <button type="button" onClick={handlePrintRelease} className="btn-primary">Print release (with approved by)</button>
             </div>
+          )}
+          {(gatePass.status === 'pending' || !gatePass.status) && (
+            <p className="gp-scan-pending-msg">This gate pass is pending admin approval. Approve or reject from <strong>Gate Pass History</strong>.</p>
+          )}
+          {(gatePass.status === 'rejected') && (
+            <p className="gp-scan-rejected-msg">This gate pass was rejected. It cannot be released.</p>
           )}
           <table className="gp-items-table">
             <thead>

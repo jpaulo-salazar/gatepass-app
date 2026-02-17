@@ -72,6 +72,7 @@ def init_db():
                     approved_by VARCHAR(255),
                     time_out VARCHAR(20),
                     time_in VARCHAR(20),
+                    date_approved DATE NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)

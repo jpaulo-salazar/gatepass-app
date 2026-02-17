@@ -110,6 +110,24 @@
 .gp-status-approved { color: #276749; }
 .gp-status-rejected { color: #c53030; }
 
+.gp-scan-pending-msg,
+.gp-scan-rejected-msg {
+  margin: 1rem 0 0 0;
+  padding: 0.75rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.gp-scan-pending-msg {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.gp-scan-rejected-msg {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
 .gp-actions {
   margin-top: 1rem;
   display: flex;

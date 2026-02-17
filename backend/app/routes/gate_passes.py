@@ -27,6 +27,7 @@ def _row_to_response(gp_row, items_rows):
         time_in=gp_row["time_in"],
         status=gp_row.get("status"),
         rejected_remarks=gp_row.get("rejected_remarks"),
+        date_approved=gp_row.get("date_approved"),
         items=[GatePassItemResponse(id=r["id"], item_code=r["item_code"], item_description=r["item_description"],
                                     qty=r["qty"], ref_doc_no=r["ref_doc_no"], destination=r["destination"])
                for r in items_rows]
@@ -79,7 +80,7 @@ def update_gate_pass_status(
     body: GatePassStatusUpdate,
     authorization: str = Header(None, alias="Authorization"),
 ):
-    """Update gate pass status (e.g. approved, rejected) and optional rejected_remarks."""
+    """Update gate pass status (e.g. approved, rejected) and optional rejected_remarks. On approve, set approved_by and date_approved."""
     get_current_user_id(authorization)
     status = (body.status or "").strip().lower() or None
     if not status:
@@ -87,15 +88,24 @@ def update_gate_pass_status(
     if status not in ("pending", "approved", "rejected"):
         raise HTTPException(status_code=400, detail="status must be pending, approved, or rejected")
     rejected_remarks = body.rejected_remarks if status == "rejected" else None
+    approved_by = (body.approved_by or "").strip() or None if status == "approved" else None
+    from datetime import date as date_type
+    date_approved = date_type.today() if status == "approved" else None
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT id FROM gate_passes WHERE id = %s", (gate_pass_id,))
             if not cur.fetchone():
                 raise HTTPException(status_code=404, detail="Gate pass not found")
-            cur.execute(
-                "UPDATE gate_passes SET status = %s, rejected_remarks = %s WHERE id = %s",
-                (status, rejected_remarks, gate_pass_id),
-            )
+            if status == "approved":
+                cur.execute(
+                    "UPDATE gate_passes SET status = %s, rejected_remarks = NULL, approved_by = COALESCE(%s, approved_by), date_approved = %s WHERE id = %s",
+                    (status, approved_by, date_approved, gate_pass_id),
+                )
+            else:
+                cur.execute(
+                    "UPDATE gate_passes SET status = %s, rejected_remarks = %s WHERE id = %s",
+                    (status, rejected_remarks, gate_pass_id),
+                )
             cur.execute("SELECT * FROM gate_passes WHERE id = %s", (gate_pass_id,))
             gp = cur.fetchone()
             cur.execute("SELECT * FROM gate_pass_items WHERE gate_pass_id = %s ORDER BY id", (gate_pass_id,))

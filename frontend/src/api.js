@@ -111,10 +111,10 @@ export async function getGatePassByNumber(gpNumber) {
 export async function createGatePass(data) {
   return api('/gate-passes', { method: 'POST', body: JSON.stringify(data), headers: getAuthHeader() });
 }
-export async function updateGatePassStatus(id, { status, rejected_remarks }) {
+export async function updateGatePassStatus(id, { status, rejected_remarks, approved_by }) {
   return api(`/gate-passes/${id}/status`, {
     method: 'PATCH',
-    body: JSON.stringify({ status, rejected_remarks }),
+    body: JSON.stringify({ status, rejected_remarks, approved_by }),
     headers: getAuthHeader(),
   });
 }

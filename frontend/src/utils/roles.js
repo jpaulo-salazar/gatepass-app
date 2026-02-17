@@ -5,14 +5,14 @@
 const ROLE_ACCESS = {
   scan_only: ['/scan'],
   encoding: ['/', '/history', '/users', '/products'],
-  admin: ['/', '/history', '/scan', '/users', '/products'],
+  admin: ['/', '/history', '/approval', '/scan', '/users', '/products'],
 };
 
 export function canAccessPath(role, path) {
   const r = role === 'gatepass_only' ? 'encoding' : role;
-  const normalized = path === '/scan' ? '/scan' : path === '/users' ? '/users' : path === '/products' ? '/products' : path === '/history' ? '/history' : '/';
+  const normalized = path === '/scan' ? '/scan' : path === '/users' ? '/users' : path === '/products' ? '/products' : path === '/history' ? '/history' : path === '/approval' ? '/approval' : path === '/print' ? '/print' : '/';
   const allowed = ROLE_ACCESS[r] || ROLE_ACCESS.encoding;
-  return allowed.includes(normalized);
+  return allowed.includes(normalized) || path === '/print';
 }
 
 export function getDefaultPath(role) {
@@ -25,6 +25,7 @@ export function getNavItemsForRole(role) {
   const r = role === 'gatepass_only' ? 'encoding' : role;
   const all = [
     { path: '/', label: 'Gate Pass Form' },
+    { path: '/approval', label: 'For Approval' },
     { path: '/history', label: 'Gate Pass History' },
     { path: '/scan', label: 'Scan Barcode' },
     { path: '/users', label: 'User Encoding' },

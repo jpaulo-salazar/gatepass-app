@@ -1,13 +1,19 @@
 import { useState, useEffect } from 'react';
-import { getGatePasses } from '../api';
+import { getGatePasses, updateGatePassStatus } from '../api';
+import { useAuth } from '../context/AuthContext';
 import './GatePassForm.css';
 import './Scan.css';
 
-export default function GatePassHistory() {
+/** Admin-only: list of gate passes pending approval. Approve/Reject here; approved/rejected appear in Gate Pass History. */
+export default function ForApproval() {
+  const { user } = useAuth();
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [viewGp, setViewGp] = useState(null);
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [rejectRemarks, setRejectRemarks] = useState('');
+  const [showRejectRemarks, setShowRejectRemarks] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -16,7 +22,8 @@ export default function GatePassHistory() {
       setError('');
       try {
         const data = await getGatePasses();
-        if (!cancelled) setList(data);
+        const pending = (data || []).filter((g) => (g.status || 'pending') === 'pending');
+        if (!cancelled) setList(pending);
       } catch (e) {
         if (!cancelled) setError(e.message);
       } finally {
@@ -35,7 +42,7 @@ export default function GatePassHistory() {
     return parts.length ? parts.join(', ') : '—';
   }
 
-  if (loading) return <div className="encoding-loading">Loading gate pass history…</div>;
+  if (loading) return <div className="encoding-loading">Loading gate passes for approval…</div>;
 
   function formatDate(d) {
     if (!d) return '—';
@@ -44,17 +51,50 @@ export default function GatePassHistory() {
     return d;
   }
 
-  const gp = viewGp;
+  async function handleApprove() {
+    if (!viewGp) return;
+    setStatusLoading(true);
+    setError('');
+    try {
+      const updated = await updateGatePassStatus(viewGp.id, { status: 'approved', approved_by: user?.full_name || undefined });
+      setViewGp(null);
+      setList((prev) => prev.filter((g) => g.id !== updated.id));
+      setShowRejectRemarks(false);
+      setRejectRemarks('');
+    } catch (e) {
+      setError(e.message || 'Failed to approve');
+    } finally {
+      setStatusLoading(false);
+    }
+  }
 
-  const listApprovedRejected = list.filter((g) => {
-    const s = (g.status || 'pending').toLowerCase();
-    return s === 'approved' || s === 'rejected';
-  });
+  async function handleReject() {
+    if (!viewGp) return;
+    if (!showRejectRemarks) {
+      setShowRejectRemarks(true);
+      return;
+    }
+    setStatusLoading(true);
+    setError('');
+    try {
+      const updated = await updateGatePassStatus(viewGp.id, { status: 'rejected', rejected_remarks: rejectRemarks || null });
+      setViewGp(null);
+      setList((prev) => prev.filter((g) => g.id !== updated.id));
+      setShowRejectRemarks(false);
+      setRejectRemarks('');
+    } catch (e) {
+      setError(e.message || 'Failed to reject');
+    } finally {
+      setStatusLoading(false);
+    }
+  }
+
+  const gp = viewGp;
 
   return (
     <div className="gatepass-form-page encoding-page">
-      <h1>Gate Pass History</h1>
-      <p className="form-subtitle">Approved and rejected gate passes (view only). For pending items, use <strong>For Approval</strong>.</p>
+      <h1>For Approval</h1>
+      <p className="form-subtitle">Gate passes pending your approval. Approve or reject here; approved and rejected passes appear in Gate Pass History.</p>
       {error && <div className="gp-error">{error}</div>}
       <section className="gp-section">
         <div className="gp-history-wrap">
@@ -66,36 +106,34 @@ export default function GatePassHistory() {
                 <th>Authorized</th>
                 <th>In/Out</th>
                 <th>Purpose</th>
-                <th>Status</th>
-                <th>Rejected remarks</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {listApprovedRejected.length === 0 ? (
+              {list.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="gp-history-empty">No approved or rejected gate passes yet.</td>
+                  <td colSpan={6} className="gp-history-empty">No gate passes pending approval.</td>
                 </tr>
               ) : (
-                listApprovedRejected.map((item) => (
+                list.map((item) => (
                   <tr key={item.id}>
                     <td><strong>{item.gp_number}</strong></td>
                     <td>{formatDate(item.pass_date)}</td>
                     <td>{item.authorized_name || '—'}</td>
                     <td>{(item.in_or_out || 'out').toUpperCase()}</td>
                     <td>{purposeSummary(item)}</td>
-                    <td><span className={`gp-status gp-status-${(item.status || 'pending').toLowerCase()}`}>{item.status || 'pending'}</span></td>
-                    <td>{item.rejected_remarks || '—'}</td>
                     <td>
                       <button
                         type="button"
                         className="gp-btn-view"
                         onClick={() => {
                           setViewGp(item);
+                          setShowRejectRemarks(false);
+                          setRejectRemarks('');
                           setError('');
                         }}
                       >
-                        View
+                        View &amp; Decide
                       </button>
                     </td>
                   </tr>
@@ -118,7 +156,6 @@ export default function GatePassHistory() {
             <div className="gatepass-display gp-modal-body">
               <div className="gp-info">
                 <p><strong>In/Out:</strong> {(gp.in_or_out || 'out').toUpperCase()}</p>
-                <p><strong>Status:</strong> <span className={`gp-status gp-status-${(gp.status || 'pending').toLowerCase()}`}>{gp.status || 'pending'}</span></p>
                 <p><strong>Date:</strong> {gp.pass_date}</p>
                 <p><strong>Authorized (Driver/Helpers/Customer):</strong> {gp.authorized_name || '—'}</p>
                 <p><strong>Purpose:</strong>{' '}
@@ -133,9 +170,23 @@ export default function GatePassHistory() {
                 <p><strong>Plate No.:</strong> {gp.plate_no || '—'}</p>
                 <p><strong>Prepared by:</strong> {gp.prepared_by || '—'}</p>
                 <p><strong>Time Out:</strong> {gp.time_out || '—'} <strong>Time In:</strong> {gp.time_in || '—'}</p>
-                {gp.rejected_remarks && <p><strong>Rejection remarks:</strong> {gp.rejected_remarks}</p>}
-                {gp.status === 'approved' && gp.approved_by && <p><strong>Approved by:</strong> {gp.approved_by}</p>}
-                {gp.status === 'approved' && gp.date_approved && <p><strong>Date approved:</strong> {gp.date_approved}</p>}
+              </div>
+              <div className="gp-actions">
+                {!showRejectRemarks ? (
+                  <>
+                    <button type="button" onClick={handleApprove} className="btn-primary" disabled={statusLoading}>Approve</button>
+                    <button type="button" onClick={handleReject} className="btn-reject" disabled={statusLoading}>Reject</button>
+                  </>
+                ) : (
+                  <div className="reject-remarks-wrap">
+                    <label>Remarks (reason for rejection):</label>
+                    <textarea value={rejectRemarks} onChange={(e) => setRejectRemarks(e.target.value)} placeholder="Enter remarks..." rows={3} />
+                    <div className="reject-remarks-buttons">
+                      <button type="button" onClick={handleReject} className="btn-reject" disabled={statusLoading}>Confirm Reject</button>
+                      <button type="button" onClick={() => { setShowRejectRemarks(false); setRejectRemarks(''); }} className="btn-secondary">Cancel</button>
+                    </div>
+                  </div>
+                )}
               </div>
               <table className="gp-items-table">
                 <thead>

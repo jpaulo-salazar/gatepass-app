@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getProducts, createGatePass } from '../api';
 import { useAuth } from '../context/AuthContext';
 import './Encoding.css';
@@ -10,6 +11,7 @@ const emptyItem = () => ({ item_code: '', item_description: '', qty: 0, ref_doc_
 
 export default function GatePassForm() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -185,8 +187,9 @@ export default function GatePassForm() {
       {createdGp && (
         <div className="gp-success-msg">
           <strong>Gate pass created:</strong> GP#{createdGp.gp_number}
-          <div>
-            <button type="button" onClick={createAnother} className="btn-primary">Create another</button>
+          <div className="gp-success-buttons">
+            <button type="button" onClick={() => navigate('/print', { state: { gatePass: createdGp, variant: 'form' } })} className="btn-primary">Print form (with barcode)</button>
+            <button type="button" onClick={createAnother} className="btn-secondary">Create another</button>
           </div>
         </div>
       )}
