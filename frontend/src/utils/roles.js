@@ -4,7 +4,7 @@
 
 const ROLE_ACCESS = {
   scan_only: ['/scan'],
-  encoding: ['/', '/history', '/users', '/products'],
+  encoding: ['/', '/history'],
   admin: ['/', '/history', '/approval', '/scan', '/users', '/products'],
 };
 

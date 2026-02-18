@@ -68,9 +68,6 @@ export default function Login() {
         <h1>CHERENZ GLOBAL MFG. INC.</h1>
         <h2>Gate Pass</h2>
         <p className="login-subtitle">Sign in to continue</p>
-        <p className="login-api-hint" title="If this shows your server IP, login will use it; if it shows (default), the old code may be cached.">
-          API: {apiBaseUsed}
-        </p>
         <form onSubmit={handleSubmit}>
           {error && <div className="login-error">{error}</div>}
           <label>

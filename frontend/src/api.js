@@ -92,6 +92,13 @@ export async function getProducts() {
 export async function createProduct(data) {
   return api('/products', { method: 'POST', body: JSON.stringify(data), headers: getAuthHeader() });
 }
+export async function createProductsBulk(items) {
+  return api('/products/bulk', {
+    method: 'POST',
+    body: JSON.stringify({ items }),
+    headers: getAuthHeader(),
+  });
+}
 export async function updateProduct(id, data) {
   return api(`/products/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: getAuthHeader() });
 }

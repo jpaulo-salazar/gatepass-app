@@ -31,6 +31,17 @@ class ProductCreate(BaseModel):
     item_description: str
     item_group: Optional[str] = None
 
+
+class ProductsBulkCreate(BaseModel):
+    items: List[ProductCreate]
+
+
+class ProductsBulkResponse(BaseModel):
+    created: int
+    skipped: int
+    skipped_codes: List[str] = []
+
+
 class ProductResponse(BaseModel):
     id: int
     item_code: str
