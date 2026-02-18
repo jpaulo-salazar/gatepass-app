@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import { getGatePasses } from '../api';
 import './GatePassForm.css';
 import './Scan.css';
@@ -8,6 +9,7 @@ export default function GatePassHistory() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [viewGp, setViewGp] = useState(null);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -51,12 +53,107 @@ export default function GatePassHistory() {
     return s === 'approved' || s === 'rejected';
   });
 
+  const searchLower = search.trim().toLowerCase();
+  const filteredList = searchLower
+    ? listApprovedRejected.filter((g) => {
+        const gpNum = (g.gp_number || '').toLowerCase();
+        const auth = (g.authorized_name || '').toLowerCase();
+        const dateStr = (g.pass_date || '').toString();
+        const statusStr = (g.status || '').toLowerCase();
+        const purpose = purposeSummary(g).toLowerCase();
+        const remarks = (g.rejected_remarks || '').toLowerCase();
+        const inOut = (g.in_or_out || '').toLowerCase();
+        return [gpNum, auth, dateStr, statusStr, purpose, remarks, inOut].some((s) => s.includes(searchLower));
+      })
+    : listApprovedRejected;
+
+  function exportToExcel() {
+    const headers = [
+      'GP Number',
+      'Date',
+      'Authorized',
+      'In/Out',
+      'Purpose',
+      'Status',
+      'Vehicle Type',
+      'Plate No.',
+      'Prepared by',
+      'Approved by',
+      'Date Approved',
+      'Rejected remarks',
+      'Item Code',
+      'Item Description',
+      'Qty',
+      'Ref. Doc No.',
+      'Destination',
+    ];
+    const rows = [];
+    for (const g of filteredList) {
+      const itemRows = [
+        g.gp_number || '',
+        g.pass_date || '',
+        g.authorized_name || '',
+        (g.in_or_out || 'out').toUpperCase(),
+        purposeSummary(g),
+        g.status || 'pending',
+        g.vehicle_type || '',
+        g.plate_no || '',
+        g.prepared_by || '',
+        g.approved_by || '',
+        g.date_approved || '',
+        g.rejected_remarks || '',
+      ];
+      const items = g.items || [];
+      if (items.length === 0) {
+        rows.push([...itemRows, '', '', '', '', '']);
+      } else {
+        for (const it of items) {
+          rows.push([
+            ...itemRows,
+            it.item_code || '',
+            it.item_description || '',
+            it.qty ?? '',
+            it.ref_doc_no || '',
+            it.destination || '',
+          ]);
+        }
+      }
+    }
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Gate Pass History');
+    const dateStr = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, `gate-pass-history-${dateStr}.xlsx`);
+  }
+
   return (
     <div className="gatepass-form-page encoding-page">
       <h1>Gate Pass History</h1>
       <p className="form-subtitle">Approved and rejected gate passes (view only). For pending items, use <strong>For Approval</strong>.</p>
       {error && <div className="gp-error">{error}</div>}
       <section className="gp-section">
+        <div className="list-search-wrap">
+          <input
+            type="search"
+            className="list-search-input"
+            placeholder="Search by GP number, authorized name, date, status..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            aria-label="Search gate passes"
+          />
+          {search && (
+            <span className="list-search-hint">{filteredList.length} of {listApprovedRejected.length}</span>
+          )}
+          <button
+            type="button"
+            onClick={exportToExcel}
+            className="btn-secondary gp-export-btn"
+            disabled={filteredList.length === 0}
+            title="Export current list to Excel"
+          >
+            Export to Excel
+          </button>
+        </div>
         <div className="gp-history-wrap">
           <table className="gp-history-table">
             <thead>
@@ -72,12 +169,14 @@ export default function GatePassHistory() {
               </tr>
             </thead>
             <tbody>
-              {listApprovedRejected.length === 0 ? (
+              {filteredList.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="gp-history-empty">No approved or rejected gate passes yet.</td>
+                  <td colSpan={8} className="gp-history-empty">
+                    {listApprovedRejected.length === 0 ? 'No approved or rejected gate passes yet.' : 'No matches for your search.'}
+                  </td>
                 </tr>
               ) : (
-                listApprovedRejected.map((item) => (
+                filteredList.map((item) => (
                   <tr key={item.id}>
                     <td><strong>{item.gp_number}</strong></td>
                     <td>{formatDate(item.pass_date)}</td>

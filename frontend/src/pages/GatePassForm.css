@@ -287,6 +287,61 @@
   font-size: 0.875rem;
 }
 
+/* List search (Gate Pass History, For Approval) */
+.list-search-wrap {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.gp-export-btn {
+  padding: 0.5rem 1rem;
+  background: #fff;
+  color: #1a365d;
+  border: 1px solid #cbd5e0;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.gp-export-btn:hover:not(:disabled) {
+  background: #edf2f7;
+  border-color: #1a365d;
+  color: #2c5282;
+}
+
+.gp-export-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.list-search-input {
+  flex: 1;
+  max-width: 320px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.list-search-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.list-search-input::placeholder {
+  color: #9ca3af;
+}
+
+.list-search-hint {
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
 /* Gate Pass History */
 .gp-history-wrap {
   overflow-x: auto;

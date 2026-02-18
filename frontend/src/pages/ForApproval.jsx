@@ -14,6 +14,7 @@ export default function ForApproval() {
   const [statusLoading, setStatusLoading] = useState(false);
   const [rejectRemarks, setRejectRemarks] = useState('');
   const [showRejectRemarks, setShowRejectRemarks] = useState(false);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -91,12 +92,37 @@ export default function ForApproval() {
 
   const gp = viewGp;
 
+  const searchLower = search.trim().toLowerCase();
+  const filteredList = searchLower
+    ? list.filter((g) => {
+        const gpNum = (g.gp_number || '').toLowerCase();
+        const auth = (g.authorized_name || '').toLowerCase();
+        const dateStr = (g.pass_date || '').toString();
+        const purpose = purposeSummary(g).toLowerCase();
+        const inOut = (g.in_or_out || '').toLowerCase();
+        return [gpNum, auth, dateStr, purpose, inOut].some((s) => s.includes(searchLower));
+      })
+    : list;
+
   return (
     <div className="gatepass-form-page encoding-page">
       <h1>For Approval</h1>
       <p className="form-subtitle">Gate passes pending your approval. Approve or reject here; approved and rejected passes appear in Gate Pass History.</p>
       {error && <div className="gp-error">{error}</div>}
       <section className="gp-section">
+        <div className="list-search-wrap">
+          <input
+            type="search"
+            className="list-search-input"
+            placeholder="Search by GP number, authorized name, date..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            aria-label="Search pending gate passes"
+          />
+          {search && (
+            <span className="list-search-hint">{filteredList.length} of {list.length}</span>
+          )}
+        </div>
         <div className="gp-history-wrap">
           <table className="gp-history-table">
             <thead>
@@ -110,12 +136,14 @@ export default function ForApproval() {
               </tr>
             </thead>
             <tbody>
-              {list.length === 0 ? (
+              {filteredList.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="gp-history-empty">No gate passes pending approval.</td>
+                  <td colSpan={6} className="gp-history-empty">
+                    {list.length === 0 ? 'No gate passes pending approval.' : 'No matches for your search.'}
+                  </td>
                 </tr>
               ) : (
-                list.map((item) => (
+                filteredList.map((item) => (
                   <tr key={item.id}>
                     <td><strong>{item.gp_number}</strong></td>
                     <td>{formatDate(item.pass_date)}</td>
