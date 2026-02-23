@@ -317,7 +317,7 @@ export default function GatePassForm() {
                     />
                   </td>
                   <td>
-                    <input type="number" min={0} value={it.qty} onChange={(e) => updateItem(i, 'qty', e.target.value)} style={{ maxWidth: '70px' }} />
+                    <input type="number" min={0} value={it.qty} onChange={(e) => updateItem(i, 'qty', e.target.value)} style={{ maxWidth: '100px' }} />
                   </td>
                   <td>
                     <input value={it.ref_doc_no} onChange={(e) => updateItem(i, 'ref_doc_no', e.target.value)} placeholder="Ref. No." />
