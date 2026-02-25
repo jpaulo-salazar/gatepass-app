@@ -203,17 +203,23 @@
   margin: 4px 0;
 }
 
-/* Print media: hide background, ensure clean paper look */
+/* Print media: hide background, minimize free space */
 @media print {
+  @page {
+    margin: 10mm;
+  }
+
   .gatepass-print-root {
     padding: 0;
     background: #fff;
+    min-height: auto;
   }
 
   .gatepass-print-paper {
     box-shadow: none;
     max-width: 100%;
-    padding: 10mm 12mm;
+    padding: 0;
+    margin: 0;
   }
 
   .gatepass-print-paper * {

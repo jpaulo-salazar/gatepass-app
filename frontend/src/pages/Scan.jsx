@@ -91,6 +91,11 @@ export default function Scan() {
     navigate('/print', { state: { gatePass, variant: 'release' } });
   }
 
+  function handlePrintReleasePOS() {
+    if (!gatePass) return;
+    navigate('/print', { state: { gatePass, variant: 'release', format: 'pos' } });
+  }
+
   useEffect(() => {
     const value = manualGp.trim();
     if (value.length < 2) return;
@@ -160,6 +165,7 @@ export default function Scan() {
           {(gatePass.status === 'approved') && (
             <div className="gp-actions">
               <button type="button" onClick={handlePrintRelease} className="btn-primary">Print release (with approved by)</button>
+              {/* <button type="button" onClick={handlePrintReleasePOS} className="btn-secondary">Print release (POS / thermal)</button> */}
             </div>
           )}
           {(gatePass.status === 'pending' || !gatePass.status) && (

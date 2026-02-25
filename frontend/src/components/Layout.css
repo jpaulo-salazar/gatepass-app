@@ -85,3 +85,17 @@
   margin: 0 auto;
   box-sizing: border-box;
 }
+
+@media print {
+  .app-header {
+    display: none !important;
+  }
+  .app-main {
+    padding: 0 !important;
+    max-width: none;
+  }
+  .app-layout {
+    min-height: auto;
+    background: #fff;
+  }
+}
