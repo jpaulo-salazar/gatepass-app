@@ -187,7 +187,7 @@
 
 .gp-items-table th,
 .gp-items-table td {
-  padding: 0.5rem 0.75rem;
+  padding: 2px;
   text-align: left;
   border-bottom: 1px solid #e2e8f0;
 }
