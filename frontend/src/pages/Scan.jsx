@@ -158,6 +158,7 @@ export default function Scan() {
             </p>
             <p><strong>Vehicle Type:</strong> {gatePass.vehicle_type || '—'}</p>
             <p><strong>Plate No.:</strong> {gatePass.plate_no || '—'}</p>
+            <p><strong>Truck Seal No.:</strong> {gatePass.attention || '—'}</p>
             <p><strong>Prepared by:</strong> {gatePass.prepared_by || '—'}</p>
             <p><strong>Time Out:</strong> {gatePass.time_out || '—'} <strong>Time In:</strong> {gatePass.time_in || '—'}</p>
             {gatePass.rejected_remarks && <p><strong>Rejection remarks:</strong> {gatePass.rejected_remarks}</p>}

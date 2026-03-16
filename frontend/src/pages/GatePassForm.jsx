@@ -258,8 +258,8 @@ export default function GatePassForm() {
             <label className="gp-field">Plate No.
               <input type="text" value={form.plate_no} onChange={(e) => setForm({ ...form, plate_no: e.target.value })} placeholder="Plate number" />
             </label>
-            <label className="gp-field">Attention
-              <input type="text" value={form.attention} onChange={(e) => setForm({ ...form, attention: e.target.value })} placeholder="Attention" />
+            <label className="gp-field">Truck Seal No.
+              <input type="text" value={form.attention} onChange={(e) => setForm({ ...form, attention: e.target.value })} placeholder="Truck Seal Number" />
             </label>
           </div>
         </section>

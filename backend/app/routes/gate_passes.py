@@ -142,15 +142,14 @@ def create_gate_pass(body: GatePassCreate, authorization: str = Header(None, ali
             in_out = (body.in_or_out or "out").strip().lower()[:10]
             if in_out not in ("in", "out"):
                 in_out = "out"
-            # Omit 'attention' unless DB has it (run migrations/004_add_gatepass_attention.sql to add)
             cur.execute("""
                 INSERT INTO gate_passes (gp_number, pass_date, authorized_name, in_or_out,
                     purpose_delivery, purpose_return, purpose_inter_warehouse, purpose_others,
-                    vehicle_type, plate_no, prepared_by, checked_by, recommended_by, approved_by, time_out, time_in)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    vehicle_type, plate_no, attention, prepared_by, checked_by, recommended_by, approved_by, time_out, time_in)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (gp_number, body.pass_date, body.authorized_name, in_out,
                   int(body.purpose_delivery), int(body.purpose_return), int(body.purpose_inter_warehouse), int(body.purpose_others),
-                  body.vehicle_type, body.plate_no, body.prepared_by, body.checked_by, body.recommended_by, body.approved_by,
+                  body.vehicle_type, body.plate_no, body.attention, body.prepared_by, body.checked_by, body.recommended_by, body.approved_by,
                   body.time_out, body.time_in))
             gate_pass_id = cur.lastrowid
             for it in body.items:

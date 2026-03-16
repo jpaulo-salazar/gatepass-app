@@ -70,7 +70,7 @@ export default function GatePassPrintView({ gatePass, variant = 'form' }) {
         <div className="gp-print-section gp-print-row2">
           <span><strong>Vehicle Type:</strong> {gatePass.vehicle_type || '—'}</span>
           <span><strong>Plate No.</strong> {gatePass.plate_no || '—'}</span>
-          <span><strong>Attention:</strong> {gatePass.attention || '—'}</span>
+          <span><strong>Truck Seal No.:</strong> {gatePass.attention || '—'}</span>
         </div>
 
         {/* Items table */}

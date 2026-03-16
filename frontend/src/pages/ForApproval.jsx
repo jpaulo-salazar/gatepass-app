@@ -196,6 +196,7 @@ export default function ForApproval() {
                 </p>
                 <p><strong>Vehicle Type:</strong> {gp.vehicle_type || '—'}</p>
                 <p><strong>Plate No.:</strong> {gp.plate_no || '—'}</p>
+                <p><strong>Truck Seal No.:</strong> {gp.attention || '—'}</p>
                 <p><strong>Prepared by:</strong> {gp.prepared_by || '—'}</p>
                 <p><strong>Time Out:</strong> {gp.time_out || '—'} <strong>Time In:</strong> {gp.time_in || '—'}</p>
               </div>
