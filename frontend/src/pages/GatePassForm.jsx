@@ -58,6 +58,12 @@ export default function GatePassForm() {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (createdGp) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [createdGp]);
+
   function addItem() {
     setForm((f) => ({ ...f, items: [...f.items, emptyItem()] }));
   }
@@ -188,7 +194,7 @@ export default function GatePassForm() {
         <div className="gp-success-msg">
           <strong>Gate pass created:</strong> GP#{createdGp.gp_number}
           <div className="gp-success-buttons">
-            <button type="button" onClick={() => navigate('/print', { state: { gatePass: createdGp, variant: 'form' } })} className="btn-primary">Print form (with barcode)</button>
+            <button type="button" onClick={() => navigate('/gatepass/print', { state: { gatePass: createdGp, variant: 'form' } })} className="btn-primary">Print form (with barcode)</button>
             <button type="button" onClick={createAnother} className="btn-secondary">Create another</button>
           </div>
         </div>

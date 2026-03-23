@@ -19,6 +19,7 @@ class UserResponse(BaseModel):
     username: str
     full_name: Optional[str]
     role: str
+    system: Optional[str] = None  # 'gatepass' | 'transmittal'
 
 class UserEncode(BaseModel):
     username: str
@@ -112,9 +113,83 @@ class GatePassStatusUpdate(BaseModel):
     approved_by: Optional[str] = None  # set when admin approves (e.g. current user full name)
 
 
+# --- Document Transmittal ---
+class TransmittalItemCreate(BaseModel):
+    item_description: str
+    qty: int
+    ref_doc_no: Optional[str] = None
+    destination: Optional[str] = None
+
+
+class TransmittalItemResponse(BaseModel):
+    id: int
+    item_description: str
+    qty: int
+    ref_doc_no: Optional[str]
+    destination: Optional[str]
+
+
+class TransmittalCreate(BaseModel):
+    transmittal_date: date
+    recipient_name: str
+    in_or_out: str = "out"
+    purpose_return: bool = False
+    purpose_inter_warehouse: bool = False
+    purpose_others: bool = False
+    vehicle_type: Optional[str] = None
+    plate_no: Optional[str] = None
+    truck_seal_no: Optional[str] = None
+    prepared_by: Optional[str] = None
+    checked_by: Optional[str] = None
+    recommended_by: Optional[str] = None
+    approved_by: Optional[str] = None
+    time_out: Optional[str] = None
+    time_in: Optional[str] = None
+    items: List[TransmittalItemCreate]
+
+
+class TransmittalResponse(BaseModel):
+    id: int
+    transmittal_number: str
+    transmittal_date: date
+    recipient_name: str
+    in_or_out: Optional[str] = None
+    purpose_return: bool
+    purpose_inter_warehouse: bool
+    purpose_others: bool
+    vehicle_type: Optional[str]
+    plate_no: Optional[str]
+    truck_seal_no: Optional[str]
+    prepared_by: Optional[str]
+    checked_by: Optional[str]
+    recommended_by: Optional[str]
+    approved_by: Optional[str]
+    time_out: Optional[str]
+    time_in: Optional[str]
+    status: Optional[str] = None
+    rejected_remarks: Optional[str] = None
+    date_approved: Optional[date] = None
+    received_by_receptionist_at: Optional[str] = None
+    received_by_receptionist_name: Optional[str] = None
+    received_by_recipient_at: Optional[str] = None
+    received_by_recipient_name: Optional[str] = None
+    items: List[TransmittalItemResponse]
+
+
+class TransmittalStatusUpdate(BaseModel):
+    status: str
+    rejected_remarks: Optional[str] = None
+    approved_by: Optional[str] = None
+
+
+class TransmittalReceiveUpdate(BaseModel):
+    received_by: Optional[str] = None  # name of receptionist or recipient
+
+
 class LoginRequest(BaseModel):
     username: str
     password: str
+    system: str = "gatepass"  # 'gatepass' | 'transmittal' - which user list to validate against
 
 class TokenResponse(BaseModel):
     access_token: str

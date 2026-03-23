@@ -1,7 +1,15 @@
 import { useEffect } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getNavItemsForRole, getDefaultPath, canAccessPath } from '../utils/roles';
+import {
+  getNavItemsForRole,
+  getDefaultPath,
+  canAccessPath,
+  getSectionFromPath,
+  getAllowedSections,
+  SECTION_GATEPASS,
+  SECTION_TRANSMITTAL,
+} from '../utils/roles';
 import './Layout.css';
 
 export default function Layout() {
@@ -9,32 +17,48 @@ export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const role = user?.role || 'encoding';
-  const navItems = getNavItemsForRole(role);
+  const userSystem = user?.system || 'gatepass';
+  const allowedSections = getAllowedSections(role, userSystem);
+  const section = getSectionFromPath(location.pathname, userSystem);
+  const navItems = getNavItemsForRole(role, section, userSystem);
 
   useEffect(() => {
-    if (role && !canAccessPath(role, location.pathname)) {
-      navigate(getDefaultPath(role), { replace: true });
+    if (!role || !userSystem) return;
+    const pathAllowed = canAccessPath(role, location.pathname, userSystem);
+    const sectionAllowed = allowedSections.includes(section);
+    if (!pathAllowed || !sectionAllowed) {
+      navigate(getDefaultPath(role, userSystem), { replace: true });
     }
-  }, [role, location.pathname, navigate]);
+  }, [role, userSystem, location.pathname, section, allowedSections, navigate]);
 
   function handleLogout() {
     logout();
-    navigate('/login', { replace: true });
+    navigate('/', { replace: true });
   }
+
+  const sectionLabels = {
+    [SECTION_GATEPASS]: 'Gate Pass',
+    [SECTION_TRANSMITTAL]: 'Transmittal',
+  };
+  const sectionLabel = sectionLabels[section] || 'Gate Pass';
 
   return (
     <div className="app-layout">
       <header className="app-header">
-        <div className="header-brand">
-          <span className="brand-name">CHERENZ GLOBAL MFG. INC.</span>
-          <span className="brand-title">Gate Pass</span>
+        <div className="header-left">
+          <div className="header-brand">
+            <span className="brand-name">CHERENZ GLOBAL MFG. INC.</span>
+            <span className="header-section-title" aria-label="Application">
+              {sectionLabel}
+            </span>
+          </div>
         </div>
         <nav className="app-nav">
           {navItems.map((item) => (
             <NavLink
-              key={item.path}
+              key={`${item.section}-${item.path}-${item.order ?? ''}`}
               to={item.path}
-              end={item.path === '/'}
+              end={item.path === '/gatepass' || item.path === '/transmittal'}
               className={({ isActive }) => (isActive ? 'active' : '')}
             >
               {item.label}

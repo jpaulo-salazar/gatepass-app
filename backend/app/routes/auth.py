@@ -53,15 +53,31 @@ def login_options(request: Request):
         },
     )
 
+SYSTEMS = ("gatepass", "transmittal")
+
+
 @router.post("/login", response_model=TokenResponse)
 def login(req: LoginRequest):
+    system = (req.system or "gatepass").strip().lower()
+    if system not in SYSTEMS:
+        raise HTTPException(status_code=400, detail="system must be gatepass or transmittal")
     with get_db() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT id, username, password_hash, full_name, role FROM users WHERE username = %s", (req.username,))
+            cur.execute(
+                "SELECT id, username, password_hash, full_name, role, \x60system\x60 FROM users WHERE username = %s AND \x60system\x60 = %s",
+                (req.username, system),
+            )
             row = cur.fetchone()
     if not row or not verify_password(req.password, row["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid username or password")
-    role = row["role"] or "admin"
-    user = UserResponse(id=row["id"], username=row["username"], full_name=row["full_name"], role=role)
-    token = create_access_token({"sub": str(row["id"]), "username": row["username"], "role": role})
+    role = (row["role"] or "encoding").strip() or "encoding"
+    user_system = row.get("system") or system
+    user = UserResponse(
+        id=row["id"],
+        username=row["username"],
+        full_name=row["full_name"],
+        role=role,
+        system=user_system,
+    )
+    token = create_access_token({"sub": str(row["id"]), "username": row["username"], "role": role, "system": user_system})
     return TokenResponse(access_token=token, user=user)

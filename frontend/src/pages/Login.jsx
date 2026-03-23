@@ -15,7 +15,9 @@ function getLoginApiBase() {
   return null;
 }
 
-export default function Login() {
+export default function Login({ system: systemProp }) {
+  const [system, setSystem] = useState(systemProp || 'gatepass');
+  const systemLocked = !!systemProp;
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -24,7 +26,8 @@ export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = location.state?.from?.pathname || '/';
+  const defaultFrom = system === 'transmittal' ? '/transmittal' : '/gatepass';
+  const from = location.state?.from?.pathname || defaultFrom;
 
   useEffect(() => {
     setApiBaseUsed(getLoginApiBase() || '(default from api.js)');
@@ -41,7 +44,7 @@ export default function Login() {
         const r = await fetch(forcedBase + '/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password }),
+          body: JSON.stringify({ username, password, system }),
         });
         if (!r.ok) {
           const err = await r.json().catch(() => ({ detail: r.statusText }));
@@ -49,11 +52,12 @@ export default function Login() {
         }
         res = await r.json();
       } else {
-        res = await apiLogin(username, password);
+        res = await apiLogin(username, password, system);
       }
       login(res.access_token, res.user);
       const role = res.user?.role || 'encoding';
-      const target = canAccessPath(role, from) ? from : getDefaultPath(role);
+      const userSystem = res.user?.system || 'gatepass';
+      const target = canAccessPath(role, from, userSystem) ? from : getDefaultPath(role, userSystem);
       navigate(target, { replace: true });
     } catch (err) {
       setError(err.message || 'Invalid username or password');
@@ -62,14 +66,31 @@ export default function Login() {
     }
   }
 
+  useEffect(() => {
+    if (systemProp) setSystem(systemProp);
+  }, [systemProp]);
+
   return (
     <div className="login-page">
       <div className="login-card">
         <h1>CHERENZ GLOBAL MFG. INC.</h1>
-        <h2>Gate Pass</h2>
+        <h2>{system === 'transmittal' ? 'Transmittal' : 'Gate Pass'}</h2>
         <p className="login-subtitle">Sign in to continue</p>
         <form onSubmit={handleSubmit}>
           {error && <div className="login-error">{error}</div>}
+          {!systemLocked && (
+            <label>
+              Sign in to
+              <select
+                value={system}
+                onChange={(e) => setSystem(e.target.value)}
+                aria-label="System"
+              >
+                <option value="gatepass">Gate Pass</option>
+                <option value="transmittal">Transmittal</option>
+              </select>
+            </label>
+          )}
           <label>
             Username
             <input

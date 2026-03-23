@@ -88,12 +88,12 @@ export default function Scan() {
 
   function handlePrintRelease() {
     if (!gatePass) return;
-    navigate('/print', { state: { gatePass, variant: 'release' } });
+    navigate('/gatepass/print', { state: { gatePass, variant: 'release' } });
   }
 
   function handlePrintReleasePOS() {
     if (!gatePass) return;
-    navigate('/print', { state: { gatePass, variant: 'release', format: 'pos' } });
+    navigate('/gatepass/print', { state: { gatePass, variant: 'release', format: 'pos' } });
   }
 
   useEffect(() => {

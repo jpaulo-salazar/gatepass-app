@@ -7,6 +7,7 @@ Digital gate pass form with barcode generation and scan-to-display. Built with *
 - **Login** – Authenticate to access the app (default: `admin` / `admin123`).
 - **Gate Pass Form** – Fill the digital form (date, authorized person, purpose, vehicle, items table). On submit, a gate pass is saved and a **barcode** (Code 128) is generated containing the GP number for use with barcode scanner devices.
 - **Scan Barcode** – Scan the gate pass barcode with a barcode scanner (or enter the GP number) to look up and display the encoded gate pass data (company/gate side).
+- **Document Transmittal** – Same workflow as gate pass: fill transmittal form (recipient, purpose, items), print form with barcode, approval, then **OUT**: scan to print release tag; **IN**: receptionist scans and marks “Received” (prints received tag), then recipient marks “Received”.
 - **User Encoding** – Create and edit users (username, password, full name, role).
 - **Product Encoding** – Manage item codes and descriptions used in gate pass line items.
 
@@ -40,7 +41,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Tables and a default admin user are created on first run.
+Tables and a default admin user are created on first run. For an **existing** database, run the transmittal migrations to add Document Transmittal tables: execute `migrations/006_transmittals.sql` then `migrations/007_transmittals_received_by_names.sql` in MySQL.
 
 ### 3. Frontend (React)
 
@@ -60,5 +61,10 @@ Open **http://localhost:5173**. Log in with `admin` / `admin123`, then use Gate 
 - **GET/POST/PUT/DELETE /products** – Product CRUD (auth required).
 - **GET/POST /gate-passes** – List and create gate passes (auth required).
 - **GET /gate-passes/by-number/{gp_number}** – Look up by GP number (no auth; for scanning).
+- **GET/POST /transmittals** – List and create document transmittals (auth required).
+- **GET /transmittals/by-number/{number}** – Look up by transmittal number (no auth; for scanning).
+- **PATCH /transmittals/{id}/status** – Approve/reject (auth required).
+- **PATCH /transmittals/{id}/receive-receptionist** – Mark received by receptionist (auth required).
+- **PATCH /transmittals/{id}/receive-recipient** – Mark received by recipient (auth required).
 
-Barcodes encode the **gate pass number**; the scan page calls the API with that number to show the full gate pass data.
+Barcodes encode the **gate pass number** or **transmittal number** (same format: year + sequence, e.g. 20260001). The scan pages call the API with that number to show the full gate pass or transmittal data.

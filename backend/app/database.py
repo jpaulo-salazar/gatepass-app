@@ -38,11 +38,13 @@ def init_db():
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     id INT AUTO_INCREMENT PRIMARY KEY,
-                    username VARCHAR(100) UNIQUE NOT NULL,
+                    username VARCHAR(100) NOT NULL,
                     password_hash VARCHAR(255) NOT NULL,
                     full_name VARCHAR(255),
-                    role VARCHAR(50) DEFAULT 'user',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    role VARCHAR(50) DEFAULT 'encoding',
+                    \x60system\x60 VARCHAR(20) NOT NULL DEFAULT 'gatepass',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY unique_username_system (username, \x60system\x60)
                 )
             """)
             cur.execute("""
@@ -88,11 +90,17 @@ def init_db():
                     FOREIGN KEY (gate_pass_id) REFERENCES gate_passes(id) ON DELETE CASCADE
                 )
             """)
-            # Default admin if no users
-            cur.execute("SELECT COUNT(*) as c FROM users")
+            from app.routes.auth import hash_password
+            # Default admins: one for Gate Pass, one for Transmittal (same users table, system column)
+            cur.execute("SELECT COUNT(*) as c FROM users WHERE \x60system\x60 = 'gatepass'")
             if cur.fetchone()["c"] == 0:
-                from app.routes.auth import hash_password
                 cur.execute(
-                    "INSERT INTO users (username, password_hash, full_name, role) VALUES (%s, %s, %s, %s)",
-                    ("admin", hash_password("admin123"), "Administrator", "admin")
+                    "INSERT INTO users (username, password_hash, full_name, role, \x60system\x60) VALUES (%s, %s, %s, %s, %s)",
+                    ("admin", hash_password("admin123"), "Administrator", "admin", "gatepass")
+                )
+            cur.execute("SELECT COUNT(*) as c FROM users WHERE \x60system\x60 = 'transmittal'")
+            if cur.fetchone()["c"] == 0:
+                cur.execute(
+                    "INSERT INTO users (username, password_hash, full_name, role, \x60system\x60) VALUES (%s, %s, %s, %s, %s)",
+                    ("admin", hash_password("admin123"), "Transmittal Admin", "admin", "transmittal")
                 )

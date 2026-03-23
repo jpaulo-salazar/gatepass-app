@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Depends
 from app.database import get_db
 from app.schemas import GatePassCreate, GatePassResponse, GatePassItemResponse, GatePassStatusUpdate
-from app.routes.users import get_current_user_id
+from app.routes.users import get_current_user_id, require_system
 
 router = APIRouter(prefix="/gate-passes", tags=["gate-passes"])
 
@@ -34,7 +34,7 @@ def _row_to_response(gp_row, items_rows):
     )
 
 @router.get("", response_model=list[GatePassResponse])
-def list_gate_passes(authorization: str = Header(None, alias="Authorization")):
+def list_gate_passes(authorization: str = Header(None, alias="Authorization"), _=Depends(require_system("gatepass"))):
     get_current_user_id(authorization)
     with get_db() as conn:
         with conn.cursor() as cur:
@@ -61,7 +61,7 @@ def get_by_gp_number(gp_number: str, authorization: str = None):
     return _row_to_response(gp, items)
 
 @router.get("/{gate_pass_id}", response_model=GatePassResponse)
-def get_gate_pass(gate_pass_id: int, authorization: str = Header(None, alias="Authorization")):
+def get_gate_pass(gate_pass_id: int, authorization: str = Header(None, alias="Authorization"), _=Depends(require_system("gatepass"))):
     get_current_user_id(authorization)
     with get_db() as conn:
         with conn.cursor() as cur:
@@ -79,6 +79,7 @@ def update_gate_pass_status(
     gate_pass_id: int,
     body: GatePassStatusUpdate,
     authorization: str = Header(None, alias="Authorization"),
+    _=Depends(require_system("gatepass")),
 ):
     """Update gate pass status (e.g. approved, rejected) and optional rejected_remarks. On approve, set approved_by and date_approved."""
     get_current_user_id(authorization)
@@ -133,7 +134,7 @@ def _next_gp_number_for_year(cursor, year: int) -> str:
 
 
 @router.post("", response_model=GatePassResponse)
-def create_gate_pass(body: GatePassCreate, authorization: str = Header(None, alias="Authorization")):
+def create_gate_pass(body: GatePassCreate, authorization: str = Header(None, alias="Authorization"), _=Depends(require_system("gatepass"))):
     get_current_user_id(authorization)
     with get_db() as conn:
         with conn.cursor() as cur:

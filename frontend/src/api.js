@@ -66,10 +66,10 @@ export async function api(path, options = {}) {
   }
 }
 
-export async function login(username, password) {
+export async function login(username, password, system = 'gatepass') {
   return api('/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ username, password, system }),
   });
 }
 
@@ -122,6 +122,41 @@ export async function updateGatePassStatus(id, { status, rejected_remarks, appro
   return api(`/gate-passes/${id}/status`, {
     method: 'PATCH',
     body: JSON.stringify({ status, rejected_remarks, approved_by }),
+    headers: getAuthHeader(),
+  });
+}
+
+// Document Transmittals
+export async function getTransmittals() {
+  return api('/transmittals', { headers: getAuthHeader() });
+}
+export async function getTransmittal(id) {
+  return api(`/transmittals/${id}`, { headers: getAuthHeader() });
+}
+export async function getTransmittalByNumber(transmittalNumber) {
+  return api(`/transmittals/by-number/${encodeURIComponent(transmittalNumber)}`);
+}
+export async function createTransmittal(data) {
+  return api('/transmittals', { method: 'POST', body: JSON.stringify(data), headers: getAuthHeader() });
+}
+export async function updateTransmittalStatus(id, { status, rejected_remarks, approved_by }) {
+  return api(`/transmittals/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status, rejected_remarks, approved_by }),
+    headers: getAuthHeader(),
+  });
+}
+export async function receiveTransmittalReceptionist(id, { received_by } = {}) {
+  return api(`/transmittals/${id}/receive-receptionist`, {
+    method: 'PATCH',
+    body: JSON.stringify({ received_by: received_by || null }),
+    headers: getAuthHeader(),
+  });
+}
+export async function receiveTransmittalRecipient(id, { received_by } = {}) {
+  return api(`/transmittals/${id}/receive-recipient`, {
+    method: 'PATCH',
+    body: JSON.stringify({ received_by: received_by || null }),
     headers: getAuthHeader(),
   });
 }
