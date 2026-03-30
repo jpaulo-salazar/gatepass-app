@@ -134,7 +134,15 @@ export async function getTransmittal(id) {
   return api(`/transmittals/${id}`, { headers: getAuthHeader() });
 }
 export async function getTransmittalByNumber(transmittalNumber) {
-  return api(`/transmittals/by-number/${encodeURIComponent(transmittalNumber)}`);
+  const headers = { ...getAuthHeader() };
+  return api(`/transmittals/by-number/${encodeURIComponent(transmittalNumber)}`, { headers });
+}
+export async function recordTransmittalInBarcodeScan(id, phase) {
+  return api(`/transmittals/${id}/in-barcode-scan`, {
+    method: 'POST',
+    body: JSON.stringify({ phase }),
+    headers: getAuthHeader(),
+  });
 }
 export async function createTransmittal(data) {
   return api('/transmittals', { method: 'POST', body: JSON.stringify(data), headers: getAuthHeader() });

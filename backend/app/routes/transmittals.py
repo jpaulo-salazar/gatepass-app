@@ -7,13 +7,100 @@ from app.schemas import (
     TransmittalItemResponse,
     TransmittalStatusUpdate,
     TransmittalReceiveUpdate,
+    TransmittalScanEventResponse,
+    TransmittalInBarcodeScanBody,
 )
 from app.routes.users import get_current_user_id, require_system
+from app.routes.auth import verify_token
 
 router = APIRouter(prefix="/transmittals", tags=["transmittals"])
 
+EVENT_RECEPTIONIST_BARCODE = "receptionist_barcode_scanned"
+EVENT_RECEPTIONIST_RECEIVED = "receptionist_marked_received"
+EVENT_RECIPIENT_BARCODE = "recipient_barcode_scanned"
+EVENT_RECIPIENT_RECEIVED = "recipient_marked_received"
+# IN workflow (no admin approval): one logged scan per role, completes receipt in the same step
+EVENT_RECEPTIONIST_IN_SCAN = "receptionist_in_scan"
+EVENT_RECIPIENT_IN_SCAN = "recipient_in_scan"
 
-def _row_to_response(row, items_rows):
+
+def _in_ok_for_scan(row) -> bool:
+    return (row.get("in_or_out") or "out").lower() == "in" and (row.get("status") or "").lower() != "rejected"
+
+
+def _dt_iso(val):
+    if val is None:
+        return None
+    if hasattr(val, "isoformat"):
+        return val.isoformat()
+    return str(val)
+
+
+def _scan_event_from_row(r) -> TransmittalScanEventResponse:
+    return TransmittalScanEventResponse(
+        id=r["id"],
+        event_type=r["event_type"],
+        created_at=_dt_iso(r.get("created_at")) or "",
+        user_id=r.get("user_id"),
+        user_full_name=r.get("user_full_name"),
+    )
+
+
+def _fetch_scan_events(cur, transmittal_id: int) -> list[TransmittalScanEventResponse]:
+    cur.execute(
+        """SELECT id, event_type, created_at, user_id, user_full_name FROM transmittal_scan_events
+           WHERE transmittal_id = %s ORDER BY id ASC""",
+        (transmittal_id,),
+    )
+    return [_scan_event_from_row(x) for x in cur.fetchall()]
+
+
+def _insert_scan_event(cur, transmittal_id: int, event_type: str, user_id: int | None, user_full_name: str | None):
+    cur.execute(
+        """INSERT INTO transmittal_scan_events (transmittal_id, event_type, user_id, user_full_name)
+           VALUES (%s, %s, %s, %s)""",
+        (transmittal_id, event_type, user_id, user_full_name),
+    )
+
+
+def _auth_user_row(authorization: str) -> tuple[int, str | None]:
+    uid_str = get_current_user_id(authorization)
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, full_name FROM users WHERE id = %s", (uid_str,))
+            row = cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=401, detail="User not found")
+    fn = row.get("full_name")
+    fn = (fn or "").strip() or None
+    return int(row["id"]), fn
+
+
+def _optional_transmittal_actor(authorization: str | None) -> tuple[int, str | None] | None:
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    payload = verify_token(authorization.split(" ", 1)[1])
+    if not payload:
+        return None
+    if (payload.get("system") or "gatepass").strip().lower() != "transmittal":
+        return None
+    uid = payload.get("sub")
+    if uid is None:
+        return None
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, full_name FROM users WHERE id = %s", (uid,))
+            row = cur.fetchone()
+    if not row:
+        return None
+    fn = row.get("full_name")
+    fn = (fn or "").strip() or None
+    return int(row["id"]), fn
+
+
+def _row_to_response(row, items_rows, scan_events: list[TransmittalScanEventResponse] | None = None):
+    if scan_events is None:
+        scan_events = []
     return TransmittalResponse(
         id=row["id"],
         transmittal_number=row["transmittal_number"],
@@ -35,9 +122,9 @@ def _row_to_response(row, items_rows):
         status=row.get("status"),
         rejected_remarks=row.get("rejected_remarks"),
         date_approved=row.get("date_approved"),
-        received_by_receptionist_at=row.get("received_by_receptionist_at").isoformat() if row.get("received_by_receptionist_at") else None,
+        received_by_receptionist_at=_dt_iso(row.get("received_by_receptionist_at")),
         received_by_receptionist_name=row.get("received_by_receptionist_name"),
-        received_by_recipient_at=row.get("received_by_recipient_at").isoformat() if row.get("received_by_recipient_at") else None,
+        received_by_recipient_at=_dt_iso(row.get("received_by_recipient_at")),
         received_by_recipient_name=row.get("received_by_recipient_name"),
         items=[
             TransmittalItemResponse(
@@ -49,7 +136,19 @@ def _row_to_response(row, items_rows):
             )
             for r in items_rows
         ],
+        scan_events=scan_events,
     )
+
+
+def _response_from_id(cur, transmittal_id: int, with_events: bool) -> TransmittalResponse:
+    cur.execute("SELECT * FROM transmittals WHERE id = %s", (transmittal_id,))
+    row = cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Transmittal not found")
+    cur.execute("SELECT * FROM transmittal_items WHERE transmittal_id = %s ORDER BY id", (transmittal_id,))
+    items = cur.fetchall()
+    ev = _fetch_scan_events(cur, transmittal_id) if with_events else []
+    return _row_to_response(row, items, ev)
 
 
 @router.get("", response_model=list[TransmittalResponse])
@@ -68,8 +167,13 @@ def list_transmittals(authorization: str = Header(None, alias="Authorization"), 
 
 
 @router.get("/by-number/{transmittal_number}", response_model=TransmittalResponse)
-def get_by_transmittal_number(transmittal_number: str, authorization: str = None):
-    """Used by scanner: look up by transmittal number (barcode value). No auth required."""
+def get_by_transmittal_number(
+    transmittal_number: str,
+    authorization: str | None = Header(None, alias="Authorization"),
+):
+    """Look up by transmittal number (barcode). No auth required; if Bearer token is a Transmittal user, scan audit events are included."""
+    actor = _optional_transmittal_actor(authorization)
+    with_events = actor is not None
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT * FROM transmittals WHERE transmittal_number = %s", (transmittal_number.strip(),))
@@ -78,7 +182,8 @@ def get_by_transmittal_number(transmittal_number: str, authorization: str = None
                 raise HTTPException(status_code=404, detail="Transmittal not found")
             cur.execute("SELECT * FROM transmittal_items WHERE transmittal_id = %s ORDER BY id", (row["id"],))
             items = cur.fetchall()
-    return _row_to_response(row, items)
+            ev = _fetch_scan_events(cur, row["id"]) if with_events else []
+            return _row_to_response(row, items, ev)
 
 
 @router.get("/{transmittal_id}", response_model=TransmittalResponse)
@@ -86,13 +191,57 @@ def get_transmittal(transmittal_id: int, authorization: str = Header(None, alias
     get_current_user_id(authorization)
     with get_db() as conn:
         with conn.cursor() as cur:
+            return _response_from_id(cur, transmittal_id, True)
+
+
+@router.post("/{transmittal_id}/in-barcode-scan", response_model=TransmittalResponse)
+def record_in_barcode_scan(
+    transmittal_id: int,
+    body: TransmittalInBarcodeScanBody,
+    authorization: str = Header(None, alias="Authorization"),
+    _=Depends(require_system("transmittal")),
+):
+    """IN transmittal: each scan completes that step — receptionist first, then recipient (no separate approval)."""
+    phase = (body.phase or "").strip().lower()
+    if phase not in ("receptionist", "recipient"):
+        raise HTTPException(status_code=400, detail="phase must be receptionist or recipient")
+    user_id, fn = _auth_user_row(authorization)
+    now = datetime.utcnow()
+    with get_db() as conn:
+        with conn.cursor() as cur:
             cur.execute("SELECT * FROM transmittals WHERE id = %s", (transmittal_id,))
             row = cur.fetchone()
             if not row:
                 raise HTTPException(status_code=404, detail="Transmittal not found")
-            cur.execute("SELECT * FROM transmittal_items WHERE transmittal_id = %s ORDER BY id", (transmittal_id,))
-            items = cur.fetchall()
-    return _row_to_response(row, items)
+            if not _in_ok_for_scan(row):
+                raise HTTPException(status_code=400, detail="IN transmittal is rejected or cannot be scanned.")
+            if phase == "receptionist":
+                if row.get("received_by_receptionist_at"):
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Receptionist step is already done. Recipient should scan the barcode next.",
+                    )
+                _insert_scan_event(cur, transmittal_id, EVENT_RECEPTIONIST_IN_SCAN, user_id, fn)
+                cur.execute(
+                    """UPDATE transmittals SET received_by_receptionist_at = %s,
+                       received_by_receptionist_name = COALESCE(%s, received_by_receptionist_name) WHERE id = %s""",
+                    (now, fn, transmittal_id),
+                )
+            else:
+                if not row.get("received_by_receptionist_at"):
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Receptionist must scan first.",
+                    )
+                if row.get("received_by_recipient_at"):
+                    raise HTTPException(status_code=400, detail="This transmittal is already fully received")
+                _insert_scan_event(cur, transmittal_id, EVENT_RECIPIENT_IN_SCAN, user_id, fn)
+                cur.execute(
+                    """UPDATE transmittals SET received_by_recipient_at = %s,
+                       received_by_recipient_name = COALESCE(%s, received_by_recipient_name) WHERE id = %s""",
+                    (now, fn, transmittal_id),
+                )
+            return _response_from_id(cur, transmittal_id, True)
 
 
 @router.patch("/{transmittal_id}/status", response_model=TransmittalResponse)
@@ -127,11 +276,7 @@ def update_transmittal_status(
                     "UPDATE transmittals SET status = %s, rejected_remarks = %s WHERE id = %s",
                     (status, rejected_remarks, transmittal_id),
                 )
-            cur.execute("SELECT * FROM transmittals WHERE id = %s", (transmittal_id,))
-            row = cur.fetchone()
-            cur.execute("SELECT * FROM transmittal_items WHERE transmittal_id = %s ORDER BY id", (transmittal_id,))
-            items = cur.fetchall()
-    return _row_to_response(row, items)
+            return _response_from_id(cur, transmittal_id, False)
 
 
 @router.patch("/{transmittal_id}/receive-receptionist", response_model=TransmittalResponse)
@@ -142,24 +287,29 @@ def receive_receptionist(
     _=Depends(require_system("transmittal")),
 ):
     """Receptionist confirms receipt; sets received_by_receptionist_at and optional name."""
-    get_current_user_id(authorization)
+    user_id, default_name = _auth_user_row(authorization)
     now = datetime.utcnow()
-    name = (body.received_by or "").strip() or None
+    name = (body.received_by or "").strip() or default_name
     with get_db() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT id FROM transmittals WHERE id = %s", (transmittal_id,))
-            if not cur.fetchone():
+            cur.execute("SELECT * FROM transmittals WHERE id = %s", (transmittal_id,))
+            row = cur.fetchone()
+            if not row:
                 raise HTTPException(status_code=404, detail="Transmittal not found")
+            in_out = (row.get("in_or_out") or "out").lower()
+            if in_out != "in":
+                raise HTTPException(status_code=400, detail="Only IN transmittals use receptionist receipt")
+            if not _in_ok_for_scan(row):
+                raise HTTPException(status_code=400, detail="Transmittal is rejected or invalid for this action")
+            if row.get("received_by_receptionist_at"):
+                raise HTTPException(status_code=400, detail="Receptionist receipt already recorded")
+            _insert_scan_event(cur, transmittal_id, EVENT_RECEPTIONIST_RECEIVED, user_id, name)
             cur.execute(
                 """UPDATE transmittals SET received_by_receptionist_at = %s, received_by_receptionist_name = COALESCE(%s, received_by_receptionist_name)
                    WHERE id = %s""",
                 (now, name, transmittal_id),
             )
-            cur.execute("SELECT * FROM transmittals WHERE id = %s", (transmittal_id,))
-            row = cur.fetchone()
-            cur.execute("SELECT * FROM transmittal_items WHERE transmittal_id = %s ORDER BY id", (transmittal_id,))
-            items = cur.fetchall()
-    return _row_to_response(row, items)
+            return _response_from_id(cur, transmittal_id, True)
 
 
 @router.patch("/{transmittal_id}/receive-recipient", response_model=TransmittalResponse)
@@ -170,24 +320,34 @@ def receive_recipient(
     _=Depends(require_system("transmittal")),
 ):
     """Recipient confirms receipt; sets received_by_recipient_at and optional name."""
-    get_current_user_id(authorization)
+    user_id, default_name = _auth_user_row(authorization)
     now = datetime.utcnow()
-    name = (body.received_by or "").strip() or None
+    name = (body.received_by or "").strip() or default_name
     with get_db() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT id FROM transmittals WHERE id = %s", (transmittal_id,))
-            if not cur.fetchone():
+            cur.execute("SELECT * FROM transmittals WHERE id = %s", (transmittal_id,))
+            row = cur.fetchone()
+            if not row:
                 raise HTTPException(status_code=404, detail="Transmittal not found")
+            in_out = (row.get("in_or_out") or "out").lower()
+            if in_out != "in":
+                raise HTTPException(status_code=400, detail="Only IN transmittals use recipient receipt")
+            if not _in_ok_for_scan(row):
+                raise HTTPException(status_code=400, detail="Transmittal is rejected or invalid for this action")
+            if not row.get("received_by_receptionist_at"):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Receptionist must scan the barcode and confirm receipt first",
+                )
+            if row.get("received_by_recipient_at"):
+                raise HTTPException(status_code=400, detail="Recipient receipt already recorded")
+            _insert_scan_event(cur, transmittal_id, EVENT_RECIPIENT_RECEIVED, user_id, name)
             cur.execute(
                 """UPDATE transmittals SET received_by_recipient_at = %s, received_by_recipient_name = COALESCE(%s, received_by_recipient_name)
                    WHERE id = %s""",
                 (now, name, transmittal_id),
             )
-            cur.execute("SELECT * FROM transmittals WHERE id = %s", (transmittal_id,))
-            row = cur.fetchone()
-            cur.execute("SELECT * FROM transmittal_items WHERE transmittal_id = %s ORDER BY id", (transmittal_id,))
-            items = cur.fetchall()
-    return _row_to_response(row, items)
+            return _response_from_id(cur, transmittal_id, True)
 
 
 def _next_transmittal_number_for_year(cursor, year: int) -> str:
@@ -219,11 +379,15 @@ def create_transmittal(body: TransmittalCreate, authorization: str = Header(None
             in_out = (body.in_or_out or "out").strip().lower()[:10]
             if in_out not in ("in", "out"):
                 in_out = "out"
+            # IN: no admin approval — ready for receptionist / recipient scans immediately
+            init_status = "approved" if in_out == "in" else "pending"
+            init_date_approved = date_type.today() if in_out == "in" else None
             cur.execute(
                 """INSERT INTO transmittals (transmittal_number, transmittal_date, recipient_name, in_or_out,
                    purpose_return, purpose_inter_warehouse, purpose_others,
-                   vehicle_type, plate_no, truck_seal_no, prepared_by, checked_by, recommended_by, approved_by, time_out, time_in)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                   vehicle_type, plate_no, truck_seal_no, prepared_by, checked_by, recommended_by, approved_by, time_out, time_in,
+                   status, date_approved)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                 (
                     transmittal_number,
                     body.transmittal_date,
@@ -241,6 +405,8 @@ def create_transmittal(body: TransmittalCreate, authorization: str = Header(None
                     body.approved_by,
                     body.time_out,
                     body.time_in,
+                    init_status,
+                    init_date_approved,
                 ),
             )
             transmittal_id = cur.lastrowid

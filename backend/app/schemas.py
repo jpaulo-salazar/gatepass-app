@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import date
 
@@ -129,6 +129,14 @@ class TransmittalItemResponse(BaseModel):
     destination: Optional[str]
 
 
+class TransmittalScanEventResponse(BaseModel):
+    id: int
+    event_type: str
+    created_at: str
+    user_id: Optional[int] = None
+    user_full_name: Optional[str] = None
+
+
 class TransmittalCreate(BaseModel):
     transmittal_date: date
     recipient_name: str
@@ -174,6 +182,7 @@ class TransmittalResponse(BaseModel):
     received_by_recipient_at: Optional[str] = None
     received_by_recipient_name: Optional[str] = None
     items: List[TransmittalItemResponse]
+    scan_events: List[TransmittalScanEventResponse] = Field(default_factory=list)
 
 
 class TransmittalStatusUpdate(BaseModel):
@@ -184,6 +193,10 @@ class TransmittalStatusUpdate(BaseModel):
 
 class TransmittalReceiveUpdate(BaseModel):
     received_by: Optional[str] = None  # name of receptionist or recipient
+
+
+class TransmittalInBarcodeScanBody(BaseModel):
+    phase: str  # receptionist | recipient — which IN step is scanning the barcode
 
 
 class LoginRequest(BaseModel):

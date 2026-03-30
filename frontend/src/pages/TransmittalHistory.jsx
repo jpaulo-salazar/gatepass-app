@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import { getTransmittals } from '../api';
+import { getTransmittals, getTransmittal } from '../api';
 import './GatePassForm.css';
 import './Scan.css';
 
@@ -10,6 +10,18 @@ function purposeSummary(t) {
   if (t.purpose_inter_warehouse) parts.push('Inter-Warehouse');
   if (t.purpose_others) parts.push('Others');
   return parts.length ? parts.join(', ') : '—';
+}
+
+function scanEventLabel(eventType) {
+  const labels = {
+    receptionist_in_scan: 'Receptionist scan (received)',
+    recipient_in_scan: 'Recipient scan (received)',
+    receptionist_barcode_scanned: 'Receptionist scanned barcode',
+    receptionist_marked_received: 'Receptionist marked received',
+    recipient_barcode_scanned: 'Recipient / personnel scanned barcode',
+    recipient_marked_received: 'Recipient / personnel marked received',
+  };
+  return labels[eventType] || eventType;
 }
 
 export default function TransmittalHistory() {
@@ -186,7 +198,15 @@ export default function TransmittalHistory() {
                       <button
                         type="button"
                         className="gp-btn-view"
-                        onClick={() => { setViewT(item); setError(''); }}
+                        onClick={async () => {
+                          setError('');
+                          try {
+                            const full = await getTransmittal(item.id);
+                            setViewT(full);
+                          } catch (e) {
+                            setError(e.message || 'Could not load detail');
+                          }
+                        }}
                       >
                         View
                       </button>
@@ -225,6 +245,21 @@ export default function TransmittalHistory() {
                 {t.status === 'approved' && t.date_approved && <p><strong>Date approved:</strong> {t.date_approved}</p>}
                 {t.received_by_receptionist_at && <p><strong>Received by receptionist:</strong> {t.received_by_receptionist_name || '—'} at {t.received_by_receptionist_at}</p>}
                 {t.received_by_recipient_at && <p><strong>Received by recipient:</strong> {t.received_by_recipient_name || '—'} at {t.received_by_recipient_at}</p>}
+                {(t.in_or_out || 'out').toLowerCase() === 'in' && (t.scan_events || []).length > 0 && (
+                  <div className="transmittal-scan-log">
+                    <h3>IN — Scan &amp; receipt log</h3>
+                    <ol className="transmittal-scan-log-list">
+                      {(t.scan_events || []).map((ev) => (
+                        <li key={ev.id}>
+                          <strong>{scanEventLabel(ev.event_type)}</strong>
+                          {' — '}
+                          {ev.created_at}
+                          {ev.user_full_name ? ` — ${ev.user_full_name}` : ''}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
               </div>
               <table className="gp-items-table">
                 <thead>

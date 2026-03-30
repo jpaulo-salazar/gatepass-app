@@ -197,3 +197,32 @@
   font-weight: 600;
   color: #2d3748;
 }
+
+.gp-scan-hint {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.9rem;
+  color: #4a5568;
+  line-height: 1.4;
+}
+
+.transmittal-scan-log {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  background: #f7fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.transmittal-scan-log h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+  color: #1a365d;
+}
+
+.transmittal-scan-log-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  font-size: 0.875rem;
+  color: #2d3748;
+  line-height: 1.5;
+}

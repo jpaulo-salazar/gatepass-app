@@ -184,6 +184,7 @@ ALTER TABLE users ADD UNIQUE KEY unique_username_system (username, `system`);
 - [ ] **008** — `users`.`system` + unique `(username, system)` (skip if already applied)
 - [ ] **006** — `transmittals`, `transmittal_items`
 - [ ] **007** — name columns on `transmittals` (skip if already present)
+- [ ] **009** — `009_transmittal_scan_events_alter.sql` → `transmittal_scan_events` (IN flow audit)
 - [ ] Transmittal admin created (script or SQL)
 - [ ] Backend + frontend deployed
 - [ ] Test login at `/transmittal/login`
@@ -197,4 +198,5 @@ ALTER TABLE users ADD UNIQUE KEY unique_username_system (username, `system`);
 | A | `backend/migrations/008_users_system_column.sql` |
 | B | `backend/migrations/006_transmittals.sql` |
 | C | `backend/migrations/007_transmittals_received_by_names.sql` |
+| D | `backend/migrations/009_transmittal_scan_events_alter.sql` |
 | Admin | `backend/scripts/create_transmittal_admin.py` |

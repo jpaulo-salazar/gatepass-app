@@ -22,7 +22,11 @@ export default function TransmittalApproval() {
       setError('');
       try {
         const data = await getTransmittals();
-        const pending = (data || []).filter((t) => (t.status || 'pending') === 'pending');
+        const pending = (data || []).filter((t) => {
+          const isPending = (t.status || 'pending') === 'pending';
+          const isIn = (t.in_or_out || 'out').toLowerCase() === 'in';
+          return isPending && !isIn;
+        });
         if (!cancelled) setList(pending);
       } catch (e) {
         if (!cancelled) setError(e.message);
@@ -111,7 +115,7 @@ export default function TransmittalApproval() {
   return (
     <div className="gatepass-form-page encoding-page">
       <h1>Transmittal — For Approval</h1>
-      <p className="form-subtitle">Document transmittals pending your approval.</p>
+      <p className="form-subtitle">OUT document transmittals pending approval. IN transmittals do not use this step.</p>
       {error && <div className="gp-error">{error}</div>}
       <section className="gp-section">
         <div className="list-search-wrap">
@@ -143,7 +147,7 @@ export default function TransmittalApproval() {
               {filteredList.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="gp-history-empty">
-                    {list.length === 0 ? 'No transmittals pending approval.' : 'No matches for your search.'}
+                    {list.length === 0 ? 'No OUT transmittals pending approval.' : 'No matches for your search.'}
                   </td>
                 </tr>
               ) : (
