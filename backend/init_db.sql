@@ -11,6 +11,20 @@ DROP TABLE IF EXISTS gate_pass_items;
 DROP TABLE IF EXISTS gate_passes;
 DROP TABLE IF EXISTS products;
 DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS departments;
+
+-- Departments (encoded per system; user encoding picks from this list)
+CREATE TABLE departments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    is_reception_desk TINYINT(1) NOT NULL DEFAULT 0,
+    `system` VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_department_name_system (name, `system`)
+);
+
+-- Default Transmittal department: reception desk (scan-only users in this dept can use Receptionist Scan)
+INSERT INTO departments (name, is_reception_desk, `system`) VALUES ('Receptionist', 1, 'transmittal');
 
 -- Users (login and user encoding). system = 'gatepass' | 'transmittal' (same table, (username, system) unique)
 CREATE TABLE users (
@@ -18,10 +32,12 @@ CREATE TABLE users (
     username VARCHAR(100) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     full_name VARCHAR(255),
+    department_id INT NULL,
     role VARCHAR(50) DEFAULT 'encoding',
     `system` VARCHAR(20) NOT NULL DEFAULT 'gatepass',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY unique_username_system (username, `system`)
+    UNIQUE KEY unique_username_system (username, `system`),
+    FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE SET NULL
 );
 
 -- Products (product encoding - item no., description, group)
@@ -98,6 +114,9 @@ CREATE TABLE IF NOT EXISTS transmittals (
     date_approved DATE NULL,
     received_by_receptionist_at DATETIME NULL,
     received_by_receptionist_name VARCHAR(255) NULL,
+    recipient_department VARCHAR(255) NULL,
+    recipient_user_id INT NULL,
+    recipient_user_name VARCHAR(255) NULL,
     received_by_recipient_at DATETIME NULL,
     received_by_recipient_name VARCHAR(255) NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

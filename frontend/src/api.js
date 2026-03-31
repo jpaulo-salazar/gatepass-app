@@ -86,6 +86,19 @@ export async function deleteUser(id) {
   return api(`/users/${id}`, { method: 'DELETE', headers: getAuthHeader() });
 }
 
+export async function getDepartments() {
+  return api('/departments', { headers: getAuthHeader() });
+}
+export async function createDepartment(data) {
+  return api('/departments', { method: 'POST', body: JSON.stringify(data), headers: getAuthHeader() });
+}
+export async function updateDepartment(id, data) {
+  return api(`/departments/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: getAuthHeader() });
+}
+export async function deleteDepartment(id) {
+  return api(`/departments/${id}`, { method: 'DELETE', headers: getAuthHeader() });
+}
+
 export async function getProducts() {
   return api('/products', { headers: getAuthHeader() });
 }
@@ -137,12 +150,24 @@ export async function getTransmittalByNumber(transmittalNumber) {
   const headers = { ...getAuthHeader() };
   return api(`/transmittals/by-number/${encodeURIComponent(transmittalNumber)}`, { headers });
 }
-export async function recordTransmittalInBarcodeScan(id, phase) {
-  return api(`/transmittals/${id}/in-barcode-scan`, {
+export async function recordTransmittalOutBarcodeScan(id, { phase, recipient_department_id, recipient_department, recipient_user_id } = {}) {
+  return api(`/transmittals/${id}/out-barcode-scan`, {
     method: 'POST',
-    body: JSON.stringify({ phase }),
+    body: JSON.stringify({
+      phase,
+      recipient_department_id: recipient_department_id != null ? recipient_department_id : null,
+      recipient_department: recipient_department || null,
+      recipient_user_id: recipient_user_id || null,
+    }),
     headers: getAuthHeader(),
   });
+}
+// Backward-compatible alias
+export async function recordTransmittalInBarcodeScan(id, phaseOrPayload) {
+  if (phaseOrPayload && typeof phaseOrPayload === 'object') {
+    return recordTransmittalOutBarcodeScan(id, phaseOrPayload);
+  }
+  return recordTransmittalOutBarcodeScan(id, { phase: phaseOrPayload });
 }
 export async function createTransmittal(data) {
   return api('/transmittals', { method: 'POST', body: JSON.stringify(data), headers: getAuthHeader() });

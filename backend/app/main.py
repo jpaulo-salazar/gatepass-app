@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import init_db
-from app.routes import auth, users, products, gate_passes, transmittals
+from app.routes import auth, users, products, gate_passes, transmittals, departments
 
 # CORS: default localhost; set BACKEND_CORS_ORIGINS for LAN (e.g. http://192.168.1.100:5173,http://localhost:5173)
 _default_origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
@@ -25,6 +25,7 @@ app.include_router(users.router)
 app.include_router(products.router)
 app.include_router(gate_passes.router)
 app.include_router(transmittals.router)
+app.include_router(departments.router)
 
 @app.on_event("startup")
 def startup():

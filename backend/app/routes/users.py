@@ -59,13 +59,35 @@ def role_required(*allowed_roles: str):
 
 
 @router.get("", response_model=list[UserResponse])
-def list_users(authorization: str = Header(None, alias="Authorization"), _=Depends(role_required("encoding", "admin"))):
+def list_users(
+    authorization: str = Header(None, alias="Authorization"),
+    _=Depends(role_required("encoding", "admin", "scan_only")),
+):
     _, system, _ = get_current_user(authorization)
     with get_db() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT id, username, full_name, role, \x60system\x60 FROM users WHERE \x60system\x60 = %s ORDER BY id", (system,))
+            cur.execute(
+                """SELECT u.id, u.username, u.full_name, u.department_id, d.name AS department,
+                          COALESCE(d.is_reception_desk, 0) AS department_is_reception_desk, u.role, u.\x60system\x60
+                   FROM users u
+                   LEFT JOIN departments d ON u.department_id = d.id
+                   WHERE u.\x60system\x60 = %s ORDER BY u.id""",
+                (system,),
+            )
             rows = cur.fetchall()
-    return [UserResponse(id=r["id"], username=r["username"], full_name=r["full_name"], role=r["role"] or "encoding", system=r.get("system") or system) for r in rows]
+    return [
+        UserResponse(
+            id=r["id"],
+            username=r["username"],
+            full_name=r["full_name"],
+            department_id=r.get("department_id"),
+            department=r.get("department"),
+            department_is_reception_desk=bool(r.get("department_is_reception_desk")),
+            role=r["role"] or "encoding",
+            system=r.get("system") or system,
+        )
+        for r in rows
+    ]
 
 
 @router.post("", response_model=UserResponse)
@@ -77,13 +99,31 @@ def create_user(user: UserCreate, authorization: str = Header(None, alias="Autho
             cur.execute("SELECT id FROM users WHERE username = %s AND \x60system\x60 = %s", (user.username, system))
             if cur.fetchone():
                 raise HTTPException(status_code=400, detail="Username already exists in this system")
+            dept_id = user.department_id
+            if dept_id:
+                cur.execute("SELECT id FROM departments WHERE id = %s AND \x60system\x60 = %s", (dept_id, system))
+                if not cur.fetchone():
+                    raise HTTPException(status_code=400, detail="Invalid department")
             cur.execute(
-                "INSERT INTO users (username, password_hash, full_name, role, \x60system\x60) VALUES (%s, %s, %s, %s, %s)",
-                (user.username, hash_password(user.password), user.full_name or "", role, system)
+                "INSERT INTO users (username, password_hash, full_name, department_id, role, \x60system\x60) VALUES (%s, %s, %s, %s, %s, %s)",
+                (user.username, hash_password(user.password), user.full_name or "", dept_id, role, system),
             )
-            cur.execute("SELECT id, username, full_name, role, \x60system\x60 FROM users WHERE id = LAST_INSERT_ID()")
+            cur.execute(
+                """SELECT u.id, u.username, u.full_name, u.department_id, d.name AS department,
+                          COALESCE(d.is_reception_desk, 0) AS department_is_reception_desk, u.role, u.\x60system\x60
+                   FROM users u LEFT JOIN departments d ON u.department_id = d.id WHERE u.id = LAST_INSERT_ID()"""
+            )
             row = cur.fetchone()
-    return UserResponse(id=row["id"], username=row["username"], full_name=row["full_name"], role=row["role"] or role, system=row.get("system") or system)
+    return UserResponse(
+        id=row["id"],
+        username=row["username"],
+        full_name=row["full_name"],
+        department_id=row.get("department_id"),
+        department=row.get("department"),
+        department_is_reception_desk=bool(row.get("department_is_reception_desk")),
+        role=row["role"] or role,
+        system=row.get("system") or system,
+    )
 
 
 @router.put("/{user_id}", response_model=UserResponse)
@@ -95,19 +135,38 @@ def update_user(user_id: int, user: UserUpdate, authorization: str = Header(None
             if not cur.fetchone():
                 raise HTTPException(status_code=404, detail="User not found")
             role = user.role if user.role in VALID_ROLES else "encoding"
+            dept_id = user.department_id
+            if dept_id:
+                cur.execute("SELECT id FROM departments WHERE id = %s AND \x60system\x60 = %s", (dept_id, system))
+                if not cur.fetchone():
+                    raise HTTPException(status_code=400, detail="Invalid department")
             if user.password:
                 cur.execute(
-                    "UPDATE users SET username=%s, password_hash=%s, full_name=%s, role=%s WHERE id=%s AND \x60system\x60=%s",
-                    (user.username, hash_password(user.password), user.full_name or "", role, user_id, system)
+                    "UPDATE users SET username=%s, password_hash=%s, full_name=%s, department_id=%s, role=%s WHERE id=%s AND \x60system\x60=%s",
+                    (user.username, hash_password(user.password), user.full_name or "", dept_id, role, user_id, system),
                 )
             else:
                 cur.execute(
-                    "UPDATE users SET username=%s, full_name=%s, role=%s WHERE id=%s AND \x60system\x60=%s",
-                    (user.username, user.full_name or "", role, user_id, system)
+                    "UPDATE users SET username=%s, full_name=%s, department_id=%s, role=%s WHERE id=%s AND \x60system\x60=%s",
+                    (user.username, user.full_name or "", dept_id, role, user_id, system),
                 )
-            cur.execute("SELECT id, username, full_name, role, \x60system\x60 FROM users WHERE id = %s", (user_id,))
+            cur.execute(
+                """SELECT u.id, u.username, u.full_name, u.department_id, d.name AS department,
+                          COALESCE(d.is_reception_desk, 0) AS department_is_reception_desk, u.role, u.\x60system\x60
+                   FROM users u LEFT JOIN departments d ON u.department_id = d.id WHERE u.id = %s""",
+                (user_id,),
+            )
             row = cur.fetchone()
-    return UserResponse(id=row["id"], username=row["username"], full_name=row["full_name"], role=row["role"], system=row.get("system") or system)
+    return UserResponse(
+        id=row["id"],
+        username=row["username"],
+        full_name=row["full_name"],
+        department_id=row.get("department_id"),
+        department=row.get("department"),
+        department_is_reception_desk=bool(row.get("department_is_reception_desk")),
+        role=row["role"],
+        system=row.get("system") or system,
+    )
 
 
 @router.delete("/{user_id}")

@@ -20,16 +20,16 @@ export default function Layout() {
   const userSystem = user?.system || 'gatepass';
   const allowedSections = getAllowedSections(role, userSystem);
   const section = getSectionFromPath(location.pathname, userSystem);
-  const navItems = getNavItemsForRole(role, section, userSystem);
+  const navItems = getNavItemsForRole(role, section, userSystem, user);
 
   useEffect(() => {
     if (!role || !userSystem) return;
-    const pathAllowed = canAccessPath(role, location.pathname, userSystem);
+    const pathAllowed = canAccessPath(role, location.pathname, userSystem, user);
     const sectionAllowed = allowedSections.includes(section);
     if (!pathAllowed || !sectionAllowed) {
-      navigate(getDefaultPath(role, userSystem), { replace: true });
+      navigate(getDefaultPath(role, userSystem, user), { replace: true });
     }
-  }, [role, userSystem, location.pathname, section, allowedSections, navigate]);
+  }, [role, userSystem, location.pathname, section, allowedSections, navigate, user]);
 
   function handleLogout() {
     logout();

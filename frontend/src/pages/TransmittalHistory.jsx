@@ -14,8 +14,8 @@ function purposeSummary(t) {
 
 function scanEventLabel(eventType) {
   const labels = {
-    receptionist_in_scan: 'Receptionist scan (received)',
-    recipient_in_scan: 'Recipient scan (received)',
+    receptionist_out_scan: 'Receptionist scan (received)',
+    recipient_out_scan: 'Recipient scan (received)',
     receptionist_barcode_scanned: 'Receptionist scanned barcode',
     receptionist_marked_received: 'Receptionist marked received',
     recipient_barcode_scanned: 'Recipient / personnel scanned barcode',
@@ -245,9 +245,9 @@ export default function TransmittalHistory() {
                 {t.status === 'approved' && t.date_approved && <p><strong>Date approved:</strong> {t.date_approved}</p>}
                 {t.received_by_receptionist_at && <p><strong>Received by receptionist:</strong> {t.received_by_receptionist_name || '—'} at {t.received_by_receptionist_at}</p>}
                 {t.received_by_recipient_at && <p><strong>Received by recipient:</strong> {t.received_by_recipient_name || '—'} at {t.received_by_recipient_at}</p>}
-                {(t.in_or_out || 'out').toLowerCase() === 'in' && (t.scan_events || []).length > 0 && (
+                {(t.scan_events || []).length > 0 && (
                   <div className="transmittal-scan-log">
-                    <h3>IN — Scan &amp; receipt log</h3>
+                    <h3>OUT — Scan &amp; receipt log</h3>
                     <ol className="transmittal-scan-log-list">
                       {(t.scan_events || []).map((ev) => (
                         <li key={ev.id}>

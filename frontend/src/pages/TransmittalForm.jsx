@@ -17,7 +17,6 @@ export default function TransmittalForm() {
   const [form, setForm] = useState({
     transmittal_date: today(),
     recipient_name: '',
-    in_or_out: 'out',
     purpose_return: false,
     purpose_inter_warehouse: false,
     purpose_others: false,
@@ -81,7 +80,7 @@ export default function TransmittalForm() {
       const payload = {
         transmittal_date: form.transmittal_date,
         recipient_name: form.recipient_name.trim() || '—',
-        in_or_out: form.in_or_out,
+        in_or_out: 'out',
         purpose_return: form.purpose_return,
         purpose_inter_warehouse: form.purpose_inter_warehouse,
         purpose_others: form.purpose_others,
@@ -177,27 +176,7 @@ export default function TransmittalForm() {
               />
             </label>
           </div>
-          <div className="gp-radio-group">
-            <span className="group-label">In / Out</span>
-            <label>
-              <input
-                type="radio"
-                name="in_out"
-                checked={form.in_or_out === 'in'}
-                onChange={() => setForm({ ...form, in_or_out: 'in' })}
-              />
-              In (items coming in)
-            </label>
-            <label>
-              <input
-                type="radio"
-                name="in_out"
-                checked={form.in_or_out === 'out'}
-                onChange={() => setForm({ ...form, in_or_out: 'out' })}
-              />
-              Out (items going out)
-            </label>
-          </div>
+          <p className="scan-desc"><strong>Flow:</strong> Document transmittal is OUT only.</p>
           <div className="gp-radio-group">
             <span className="group-label">Purpose</span>
             <label>

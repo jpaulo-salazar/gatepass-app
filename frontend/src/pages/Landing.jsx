@@ -13,7 +13,7 @@ export default function Landing() {
   useEffect(() => {
     if (isAuthenticated && user?.system) {
       const role = user.role || 'encoding';
-      navigate(getDefaultPath(role, user.system), { replace: true });
+      navigate(getDefaultPath(role, user.system, user), { replace: true });
     }
   }, [isAuthenticated, user, navigate]);
 

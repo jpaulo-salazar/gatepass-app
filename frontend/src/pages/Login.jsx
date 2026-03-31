@@ -57,7 +57,7 @@ export default function Login({ system: systemProp }) {
       login(res.access_token, res.user);
       const role = res.user?.role || 'encoding';
       const userSystem = res.user?.system || 'gatepass';
-      const target = canAccessPath(role, from, userSystem) ? from : getDefaultPath(role, userSystem);
+      const target = canAccessPath(role, from, userSystem, res.user) ? from : getDefaultPath(role, userSystem, res.user);
       navigate(target, { replace: true });
     } catch (err) {
       setError(err.message || 'Invalid username or password');

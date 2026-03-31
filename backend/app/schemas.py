@@ -6,18 +6,23 @@ class UserCreate(BaseModel):
     username: str
     password: str
     full_name: Optional[str] = None
+    department_id: Optional[int] = None
     role: str = "encoding"
 
 class UserUpdate(BaseModel):
     username: str
     password: Optional[str] = None
     full_name: Optional[str] = None
+    department_id: Optional[int] = None
     role: str = "encoding"
 
 class UserResponse(BaseModel):
     id: int
     username: str
     full_name: Optional[str]
+    department_id: Optional[int] = None
+    department: Optional[str] = None  # resolved department name (for display)
+    department_is_reception_desk: Optional[bool] = None  # True when user's department is marked reception desk
     role: str
     system: Optional[str] = None  # 'gatepass' | 'transmittal'
 
@@ -25,7 +30,25 @@ class UserEncode(BaseModel):
     username: str
     password: str
     full_name: Optional[str] = None
+    department_id: Optional[int] = None
     role: str = "encoding"
+
+
+class DepartmentCreate(BaseModel):
+    name: str
+    is_reception_desk: bool = False
+
+
+class DepartmentUpdate(BaseModel):
+    name: str
+    is_reception_desk: bool = False
+
+
+class DepartmentResponse(BaseModel):
+    id: int
+    name: str
+    is_reception_desk: bool = False
+    system: Optional[str] = None
 
 class ProductCreate(BaseModel):
     item_code: str
@@ -179,6 +202,9 @@ class TransmittalResponse(BaseModel):
     date_approved: Optional[date] = None
     received_by_receptionist_at: Optional[str] = None
     received_by_receptionist_name: Optional[str] = None
+    recipient_department: Optional[str] = None
+    recipient_user_id: Optional[int] = None
+    recipient_user_name: Optional[str] = None
     received_by_recipient_at: Optional[str] = None
     received_by_recipient_name: Optional[str] = None
     items: List[TransmittalItemResponse]
@@ -195,8 +221,11 @@ class TransmittalReceiveUpdate(BaseModel):
     received_by: Optional[str] = None  # name of receptionist or recipient
 
 
-class TransmittalInBarcodeScanBody(BaseModel):
-    phase: str  # receptionist | recipient — which IN step is scanning the barcode
+class TransmittalOutBarcodeScanBody(BaseModel):
+    phase: str  # receptionist | recipient
+    recipient_department_id: Optional[int] = None
+    recipient_department: Optional[str] = None  # legacy / fallback when id not sent
+    recipient_user_id: Optional[int] = None
 
 
 class LoginRequest(BaseModel):

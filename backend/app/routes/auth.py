@@ -64,7 +64,11 @@ def login(req: LoginRequest):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, username, password_hash, full_name, role, \x60system\x60 FROM users WHERE username = %s AND \x60system\x60 = %s",
+                """SELECT u.id, u.username, u.password_hash, u.full_name, u.department_id, d.name AS department,
+                          COALESCE(d.is_reception_desk, 0) AS department_is_reception_desk, u.role, u.\x60system\x60
+                   FROM users u
+                   LEFT JOIN departments d ON u.department_id = d.id
+                   WHERE u.username = %s AND u.\x60system\x60 = %s""",
                 (req.username, system),
             )
             row = cur.fetchone()
@@ -76,6 +80,9 @@ def login(req: LoginRequest):
         id=row["id"],
         username=row["username"],
         full_name=row["full_name"],
+        department_id=row.get("department_id"),
+        department=row.get("department"),
+        department_is_reception_desk=bool(row.get("department_is_reception_desk")),
         role=role,
         system=user_system,
     )

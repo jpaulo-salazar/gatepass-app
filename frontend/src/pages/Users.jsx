@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { getUsers, createUser, updateUser, deleteUser } from '../api';
+import { getUsers, createUser, updateUser, deleteUser, getDepartments } from '../api';
+import { useAuth } from '../context/AuthContext';
 import './Encoding.css';
 
 const ROLES = [
@@ -9,11 +10,14 @@ const ROLES = [
 ];
 
 export default function Users() {
+  const { user: authUser } = useAuth();
+  const isTransmittal = (authUser?.system || 'gatepass') === 'transmittal';
+  const [departments, setDepartments] = useState([]);
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState({ username: '', password: '', full_name: '', role: 'encoding' });
+  const [form, setForm] = useState({ username: '', password: '', full_name: '', department_id: '', role: 'encoding' });
 
   async function load() {
     setLoading(true);
@@ -32,9 +36,28 @@ export default function Users() {
     load();
   }, []);
 
+  useEffect(() => {
+    if (!isTransmittal) {
+      setDepartments([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await getDepartments();
+        if (!cancelled) setDepartments(data || []);
+      } catch (_) {
+        if (!cancelled) setDepartments([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isTransmittal]);
+
   function openCreate() {
     setEditingId(null);
-    setForm({ username: '', password: '', full_name: '', role: 'encoding' });
+    setForm({ username: '', password: '', full_name: '', department_id: '', role: 'encoding' });
   }
 
   function openEdit(user) {
@@ -43,6 +66,7 @@ export default function Users() {
       username: user.username,
       password: '',
       full_name: user.full_name || '',
+      department_id: user.department_id != null ? String(user.department_id) : '',
       role: user.role || 'encoding',
     });
   }
@@ -56,6 +80,7 @@ export default function Users() {
           username: form.username,
           password: form.password || undefined,
           full_name: form.full_name || null,
+          department_id: isTransmittal && form.department_id ? Number(form.department_id) : null,
           role: form.role,
         });
       } else {
@@ -67,12 +92,13 @@ export default function Users() {
           username: form.username,
           password: form.password,
           full_name: form.full_name || null,
+          department_id: isTransmittal && form.department_id ? Number(form.department_id) : null,
           role: form.role,
         });
       }
       await load();
       setEditingId(null);
-      setForm({ username: '', password: '', full_name: '', role: 'encoding' });
+      setForm({ username: '', password: '', full_name: '', department_id: '', role: 'encoding' });
     } catch (e) {
       setError(e.message);
     }
@@ -107,6 +133,7 @@ export default function Users() {
               <tr>
                 <th>Username</th>
                 <th>Full name</th>
+                <th>Department</th>
                 <th>Role</th>
                 <th></th>
               </tr>
@@ -116,6 +143,7 @@ export default function Users() {
                 <tr key={u.id} className={editingId === u.id ? 'editing' : ''}>
                   <td>{u.username}</td>
                   <td>{u.full_name || '—'}</td>
+                  <td>{u.department || '—'}</td>
                   <td>{u.role || '—'}</td>
                   <td>
                     <button type="button" onClick={() => openEdit(u)} className="btn-sm">Edit</button>
@@ -148,6 +176,20 @@ export default function Users() {
               value={form.full_name}
               onChange={(e) => setForm({ ...form, full_name: e.target.value })}
             />
+            {isTransmittal && (
+              <>
+                <label>Department</label>
+                <select
+                  value={form.department_id}
+                  onChange={(e) => setForm({ ...form, department_id: e.target.value })}
+                >
+                  <option value="">— None —</option>
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+              </>
+            )}
             <label>Role</label>
             <select
               value={form.role}

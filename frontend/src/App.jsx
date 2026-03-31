@@ -12,7 +12,10 @@ import TransmittalForm from './pages/TransmittalForm'
 import TransmittalApproval from './pages/TransmittalApproval'
 import TransmittalHistory from './pages/TransmittalHistory'
 import TransmittalScan from './pages/TransmittalScan'
+import TransmittalReceptionist from './pages/TransmittalReceptionist'
+import TransmittalRecipient from './pages/TransmittalRecipient'
 import TransmittalPrintPage from './pages/TransmittalPrintPage'
+import Departments from './pages/Departments'
 import Users from './pages/Users'
 import Products from './pages/Products'
 import './App.css'
@@ -36,9 +39,12 @@ function App() {
         <Route path="gatepass/print" element={<GatePassPrintPage />} />
         <Route path="gatepass/scan" element={<Scan />} />
         <Route path="transmittal" element={<TransmittalForm />} />
+        <Route path="transmittal/departments" element={<Departments />} />
         <Route path="transmittal/approval" element={<TransmittalApproval />} />
         <Route path="transmittal/history" element={<TransmittalHistory />} />
         <Route path="transmittal/scan" element={<TransmittalScan />} />
+        <Route path="transmittal/receptionist" element={<TransmittalReceptionist />} />
+        <Route path="transmittal/recipient" element={<TransmittalRecipient />} />
         <Route path="transmittal/print" element={<TransmittalPrintPage />} />
         <Route path="users" element={<Users />} />
         <Route path="products" element={<Products />} />
