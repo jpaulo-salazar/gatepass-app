@@ -150,9 +150,14 @@ export default function TransmittalOutScanPage({ phase = 'receptionist' }) {
       <h1>{isReceptionist ? 'Transmittal Receptionist Scan' : 'Transmittal Recipient Scan'}</h1>
       <p className="scan-desc">
         {isReceptionist
-          ? 'Scan approved OUT transmittal, select recipient department and user, then record receptionist receipt.'
-          : 'Scan approved OUT transmittal assigned to you, then record recipient receipt.'}
+          ? 'Look up an approved OUT transmittal (barcode on the printed form or type the number), choose recipient department and user, then record receptionist receipt.'
+          : 'Look up an approved OUT transmittal assigned to you, then record recipient receipt.'}
       </p>
+      {isReceptionist && (
+        <p className="gp-scan-hint">
+          <strong>Note:</strong> Printing the gate <strong>release tag</strong> from Scan Barcode is optional. Reception can record intake as long as the transmittal is <strong>admin-approved</strong> — a release tag is not required.
+        </p>
+      )}
 
       {error && <div className="scan-error">{error}</div>}
 
