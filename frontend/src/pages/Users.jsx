@@ -1,17 +1,26 @@
 import { useState, useEffect } from 'react';
 import { getUsers, createUser, updateUser, deleteUser, getDepartments } from '../api';
 import { useAuth } from '../context/AuthContext';
+import { getRoleDisplayLabel } from '../utils/roles';
 import './Encoding.css';
 
-const ROLES = [
+const GATEPASS_ROLE_OPTIONS = [
   { value: 'scan_only', label: 'Scan only' },
   { value: 'encoding', label: 'Encoding' },
   { value: 'admin', label: 'Admin' },
 ];
 
+const TRANSMITTAL_ROLE_OPTIONS = [
+  { value: 'scan_only', label: 'Scan only' },
+  { value: 'encoding', label: 'Encoding' },
+  { value: 'admin', label: 'Admin' },
+  { value: 'employee', label: 'Employee' },
+];
+
 export default function Users() {
   const { user: authUser } = useAuth();
   const isTransmittal = (authUser?.system || 'gatepass') === 'transmittal';
+  const roleOptions = isTransmittal ? TRANSMITTAL_ROLE_OPTIONS : GATEPASS_ROLE_OPTIONS;
   const [departments, setDepartments] = useState([]);
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -121,7 +130,10 @@ export default function Users() {
   return (
     <div className="encoding-page">
       <h1>User Encoding</h1>
-      <p className="encoding-desc">Manage users and roles (Gate pass only, Scan only, Encoding, Admin).</p>
+      <p className="encoding-desc">
+        Manage users and roles
+        {isTransmittal ? ' (Scan only, Encoding, Admin, Employee).' : ' (Scan only, Encoding, Admin).'}
+      </p>
       {error && <div className="encoding-error">{error}</div>}
       <div className="encoding-actions">
         <button type="button" onClick={openCreate} className="btn-primary">Add User</button>
@@ -144,7 +156,7 @@ export default function Users() {
                   <td>{u.username}</td>
                   <td>{u.full_name || '—'}</td>
                   <td>{u.department || '—'}</td>
-                  <td>{u.role || '—'}</td>
+                  <td>{getRoleDisplayLabel(u.role)}</td>
                   <td>
                     <button type="button" onClick={() => openEdit(u)} className="btn-sm">Edit</button>
                     <button type="button" onClick={() => handleDelete(u.id)} className="btn-sm btn-danger">Delete</button>
@@ -195,7 +207,7 @@ export default function Users() {
               value={form.role}
               onChange={(e) => setForm({ ...form, role: e.target.value })}
             >
-              {ROLES.map((r) => (
+              {roleOptions.map((r) => (
                 <option key={r.value} value={r.value}>{r.label}</option>
               ))}
             </select>

@@ -10,7 +10,7 @@ from app.schemas import (
     TransmittalScanEventResponse,
     TransmittalOutBarcodeScanBody,
 )
-from app.routes.users import get_current_user_id, require_system, get_current_user
+from app.routes.users import get_current_user_id, require_system, get_current_user, role_required
 from app.routes.auth import verify_token
 
 router = APIRouter(prefix="/transmittals", tags=["transmittals"])
@@ -154,7 +154,11 @@ def _response_from_id(cur, transmittal_id: int, with_events: bool) -> Transmitta
 
 
 @router.get("", response_model=list[TransmittalResponse])
-def list_transmittals(authorization: str = Header(None, alias="Authorization"), _=Depends(require_system("transmittal"))):
+def list_transmittals(
+    authorization: str = Header(None, alias="Authorization"),
+    _=Depends(require_system("transmittal")),
+    __=Depends(role_required("encoding", "admin")),
+):
     get_current_user_id(authorization)
     with get_db() as conn:
         with conn.cursor() as cur:
@@ -189,7 +193,12 @@ def get_by_transmittal_number(
 
 
 @router.get("/{transmittal_id}", response_model=TransmittalResponse)
-def get_transmittal(transmittal_id: int, authorization: str = Header(None, alias="Authorization"), _=Depends(require_system("transmittal"))):
+def get_transmittal(
+    transmittal_id: int,
+    authorization: str = Header(None, alias="Authorization"),
+    _=Depends(require_system("transmittal")),
+    __=Depends(role_required("encoding", "admin")),
+):
     get_current_user_id(authorization)
     with get_db() as conn:
         with conn.cursor() as cur:
@@ -222,7 +231,9 @@ def record_out_barcode_scan(
                     detail="Only approved OUT transmittals can be scanned for receipt.",
                 )
             if phase == "receptionist":
-                if jwt_role == "scan_only":
+                if jwt_role in ("encoding", "admin"):
+                    pass
+                elif jwt_role in ("scan_only", "employee"):
                     cur.execute(
                         """SELECT COALESCE(d.is_reception_desk, 0) AS v
                            FROM users u
@@ -236,6 +247,11 @@ def record_out_barcode_scan(
                             status_code=403,
                             detail="Only users in a reception desk department can complete the receptionist step.",
                         )
+                else:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Only encoding, admin, or reception-desk scan/employee users can complete the receptionist step.",
+                    )
                 if row.get("received_by_receptionist_at"):
                     raise HTTPException(
                         status_code=400,
@@ -285,6 +301,27 @@ def record_out_barcode_scan(
                     (now, fn, recipient_department, recipient_user_id, recipient_user_name, transmittal_id),
                 )
             else:
+                if jwt_role in ("encoding", "admin", "employee"):
+                    pass
+                elif jwt_role == "scan_only":
+                    cur.execute(
+                        """SELECT COALESCE(d.is_reception_desk, 0) AS v
+                           FROM users u
+                           LEFT JOIN departments d ON u.department_id = d.id
+                           WHERE u.id = %s AND u.`system` = 'transmittal'""",
+                        (user_id,),
+                    )
+                    rdesk = cur.fetchone()
+                    if not rdesk or not int(rdesk.get("v") or 0):
+                        raise HTTPException(
+                            status_code=403,
+                            detail="Only encoding, admin, employee, or reception-desk scan users can complete the recipient step.",
+                        )
+                else:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Only encoding, admin, employee, or reception-desk scan users can complete the recipient step.",
+                    )
                 if not row.get("received_by_receptionist_at"):
                     raise HTTPException(
                         status_code=400,
@@ -324,6 +361,7 @@ def update_transmittal_status(
     body: TransmittalStatusUpdate,
     authorization: str = Header(None, alias="Authorization"),
     _=Depends(require_system("transmittal")),
+    __=Depends(role_required("encoding", "admin")),
 ):
     get_current_user_id(authorization)
     status = (body.status or "").strip().lower() or None
@@ -359,6 +397,7 @@ def receive_receptionist(
     body: TransmittalReceiveUpdate,
     authorization: str = Header(None, alias="Authorization"),
     _=Depends(require_system("transmittal")),
+    __=Depends(role_required("encoding", "admin")),
 ):
     """Receptionist confirms receipt; sets received_by_receptionist_at and optional name."""
     user_id, default_name = _auth_user_row(authorization)
@@ -392,6 +431,7 @@ def receive_recipient(
     body: TransmittalReceiveUpdate,
     authorization: str = Header(None, alias="Authorization"),
     _=Depends(require_system("transmittal")),
+    __=Depends(role_required("encoding", "admin", "employee")),
 ):
     """Recipient confirms receipt; sets received_by_recipient_at and optional name."""
     user_id, default_name = _auth_user_row(authorization)
@@ -444,7 +484,12 @@ def _next_transmittal_number_for_year(cursor, year: int) -> str:
 
 
 @router.post("", response_model=TransmittalResponse)
-def create_transmittal(body: TransmittalCreate, authorization: str = Header(None, alias="Authorization"), _=Depends(require_system("transmittal"))):
+def create_transmittal(
+    body: TransmittalCreate,
+    authorization: str = Header(None, alias="Authorization"),
+    _=Depends(require_system("transmittal")),
+    __=Depends(role_required("encoding", "admin")),
+):
     get_current_user_id(authorization)
     with get_db() as conn:
         with conn.cursor() as cur:

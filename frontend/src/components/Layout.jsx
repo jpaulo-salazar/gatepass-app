@@ -7,10 +7,21 @@ import {
   canAccessPath,
   getSectionFromPath,
   getAllowedSections,
+  getRoleDisplayLabel,
   SECTION_GATEPASS,
   SECTION_TRANSMITTAL,
 } from '../utils/roles';
 import './Layout.css';
+
+/** Title-case each word for header display (e.g. "receptionist" → "Receptionist"). */
+function formatDisplayPersonName(name) {
+  if (!name || typeof name !== 'string') return '';
+  return name
+    .trim()
+    .split(/\s+/)
+    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : ''))
+    .join(' ');
+}
 
 export default function Layout() {
   const { user, logout } = useAuth();
@@ -66,7 +77,12 @@ export default function Layout() {
           ))}
         </nav>
         <div className="header-user">
-          {user?.full_name && <span>{user.full_name}</span>}
+          {user?.full_name && (
+            <span className="header-user-name">{formatDisplayPersonName(user.full_name)}</span>
+          )}
+          {user?.role && (
+            <span className="header-role" title="Role">{getRoleDisplayLabel(user.role)}</span>
+          )}
           <button type="button" className="btn-logout" onClick={handleLogout}>
             Logout
           </button>

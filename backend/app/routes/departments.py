@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Header, HTTPException, Depends
 from app.database import get_db
 from app.schemas import DepartmentCreate, DepartmentUpdate, DepartmentResponse
-from app.routes.users import get_current_user, role_required
+from app.routes.users import get_current_user, role_required, user_is_transmittal_reception_desk
 
 router = APIRouter(prefix="/departments", tags=["departments"])
 
@@ -9,9 +9,13 @@ router = APIRouter(prefix="/departments", tags=["departments"])
 @router.get("", response_model=list[DepartmentResponse])
 def list_departments(
     authorization: str = Header(None, alias="Authorization"),
-    _=Depends(role_required("encoding", "admin", "scan_only")),
 ):
-    _, system, _ = get_current_user(authorization)
+    uid, system, role = get_current_user(authorization)
+    if role not in ("encoding", "admin", "scan_only", "employee"):
+        raise HTTPException(status_code=403, detail="Not allowed for your role")
+    if role in ("scan_only", "employee"):
+        if system != "transmittal" or not user_is_transmittal_reception_desk(int(uid)):
+            raise HTTPException(status_code=403, detail="Not allowed for your role")
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(

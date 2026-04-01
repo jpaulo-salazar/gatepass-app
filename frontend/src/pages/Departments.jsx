@@ -75,7 +75,7 @@ export default function Departments() {
   return (
     <div className="encoding-page">
       <h1>Department Encoding</h1>
-      <p className="encoding-desc">Maintain the department list. User encoding assigns each user to a department from this list. Mark one department as <strong>Reception desk</strong> so scan-only users in that department can use Receptionist Scan (they can still use Recipient Scan).</p>
+      <p className="encoding-desc">Maintain the department list. User encoding assigns each user to a department from this list. Mark a department as <strong>Reception desk</strong> so users in that department can use <strong>Receptionist Scan</strong> and <strong>Recipient Scan</strong> (e.g. scan-only or employee accounts).</p>
       {error && <div className="encoding-error">{error}</div>}
       <div className="encoding-actions">
         <button type="button" onClick={openCreate} className="btn-primary">Add Department</button>
