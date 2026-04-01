@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import JsBarcode from 'jsbarcode';
+import { formatIsoDateTimeDisplay } from '../utils/dateTime';
 import './GatePassPrintView.css';
 
 /**
@@ -43,7 +44,7 @@ export default function TransmittalPrintView({ transmittal, variant = 'form' }) 
             <div className="gp-print-release-title">RECEIVED</div>
             <p><strong>Transmittal No.:</strong> {transmittal.transmittal_number}</p>
             <p><strong>Received by (Receptionist):</strong> {transmittal.received_by_receptionist_name || '—'}</p>
-            <p><strong>Date/Time:</strong> {transmittal.received_by_receptionist_at || '—'}</p>
+            <p><strong>Date/Time:</strong> {formatIsoDateTimeDisplay(transmittal.received_by_receptionist_at)}</p>
             <p><strong>Recipient:</strong> {transmittal.recipient_name || '—'}</p>
           </div>
         </div>

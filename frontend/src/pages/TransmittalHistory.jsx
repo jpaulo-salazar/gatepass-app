@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { getTransmittals, getTransmittal } from '../api';
+import { formatIsoDateTimeDisplay } from '../utils/dateTime';
 import './GatePassForm.css';
 import './Scan.css';
 
@@ -243,8 +244,18 @@ export default function TransmittalHistory() {
                 {t.rejected_remarks && <p><strong>Rejection remarks:</strong> {t.rejected_remarks}</p>}
                 {t.status === 'approved' && t.approved_by && <p><strong>Approved by:</strong> {t.approved_by}</p>}
                 {t.status === 'approved' && t.date_approved && <p><strong>Date approved:</strong> {t.date_approved}</p>}
-                {t.received_by_receptionist_at && <p><strong>Received by receptionist:</strong> {t.received_by_receptionist_name || '—'} at {t.received_by_receptionist_at}</p>}
-                {t.received_by_recipient_at && <p><strong>Received by recipient:</strong> {t.received_by_recipient_name || '—'} at {t.received_by_recipient_at}</p>}
+                {t.received_by_receptionist_at && (
+                  <p>
+                    <strong>Received by receptionist:</strong> {t.received_by_receptionist_name || '—'} at{' '}
+                    {formatIsoDateTimeDisplay(t.received_by_receptionist_at)}
+                  </p>
+                )}
+                {t.received_by_recipient_at && (
+                  <p>
+                    <strong>Received by recipient:</strong> {t.received_by_recipient_name || '—'} at{' '}
+                    {formatIsoDateTimeDisplay(t.received_by_recipient_at)}
+                  </p>
+                )}
                 {(t.scan_events || []).length > 0 && (
                   <div className="transmittal-scan-log">
                     <h3>OUT — Scan &amp; receipt log</h3>
@@ -253,7 +264,7 @@ export default function TransmittalHistory() {
                         <li key={ev.id}>
                           <strong>{scanEventLabel(ev.event_type)}</strong>
                           {' — '}
-                          {ev.created_at}
+                          {formatIsoDateTimeDisplay(ev.created_at)}
                           {ev.user_full_name ? ` — ${ev.user_full_name}` : ''}
                         </li>
                       ))}

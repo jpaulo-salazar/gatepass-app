@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { getTransmittalByNumber, recordTransmittalOutBarcodeScan, getUsers, getDepartments } from '../api';
 import { useAuth } from '../context/AuthContext';
+import { formatIsoDateTimeDisplay } from '../utils/dateTime';
 import './Scan.css';
 
 export default function TransmittalOutScanPage({ phase = 'receptionist' }) {
@@ -198,8 +199,8 @@ export default function TransmittalOutScanPage({ phase = 'receptionist' }) {
             <p><strong>Recipient:</strong> {transmittal.recipient_name || '—'}</p>
             <p><strong>Assigned Department:</strong> {transmittal.recipient_department || '—'}</p>
             <p><strong>Assigned User:</strong> {transmittal.recipient_user_name || '—'}</p>
-            <p><strong>Receptionist Received:</strong> {transmittal.received_by_receptionist_at || '—'}</p>
-            <p><strong>Recipient Received:</strong> {transmittal.received_by_recipient_at || '—'}</p>
+            <p><strong>Receptionist Received:</strong> {formatIsoDateTimeDisplay(transmittal.received_by_receptionist_at)}</p>
+            <p><strong>Recipient Received:</strong> {formatIsoDateTimeDisplay(transmittal.received_by_recipient_at)}</p>
           </div>
 
           {isReceptionist && !isApprovedOutTransmittal(transmittal) && (
