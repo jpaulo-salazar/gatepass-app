@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import './GatePassForm.css';
 import './Scan.css';
 
-/** Admin-only: list of gate passes pending approval. Approve/Reject here; approved/rejected appear in Gate Pass History. */
+/** Pending gate passes for approval (encoding, admin, approve-only). Approve/Reject here; approved/rejected appear in Gate Pass History. */
 export default function ForApproval() {
   const { user } = useAuth();
   const [list, setList] = useState([]);

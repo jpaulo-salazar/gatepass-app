@@ -7,12 +7,14 @@ import './Encoding.css';
 const GATEPASS_ROLE_OPTIONS = [
   { value: 'scan_only', label: 'Scan only' },
   { value: 'encoding', label: 'Encoding' },
+  { value: 'approve_only', label: 'Approve only' },
   { value: 'admin', label: 'Admin' },
 ];
 
 const TRANSMITTAL_ROLE_OPTIONS = [
   { value: 'scan_only', label: 'Scan only' },
   { value: 'encoding', label: 'Encoding' },
+  { value: 'approve_only', label: 'Approve only' },
   { value: 'admin', label: 'Admin' },
   { value: 'employee', label: 'Employee' },
 ];

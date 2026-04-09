@@ -157,7 +157,7 @@ def _response_from_id(cur, transmittal_id: int, with_events: bool) -> Transmitta
 def list_transmittals(
     authorization: str = Header(None, alias="Authorization"),
     _=Depends(require_system("transmittal")),
-    __=Depends(role_required("encoding", "admin")),
+    __=Depends(role_required("encoding", "admin", "approve_only")),
 ):
     get_current_user_id(authorization)
     with get_db() as conn:
@@ -197,7 +197,7 @@ def get_transmittal(
     transmittal_id: int,
     authorization: str = Header(None, alias="Authorization"),
     _=Depends(require_system("transmittal")),
-    __=Depends(role_required("encoding", "admin")),
+    __=Depends(role_required("encoding", "admin", "approve_only")),
 ):
     get_current_user_id(authorization)
     with get_db() as conn:
@@ -361,7 +361,7 @@ def update_transmittal_status(
     body: TransmittalStatusUpdate,
     authorization: str = Header(None, alias="Authorization"),
     _=Depends(require_system("transmittal")),
-    __=Depends(role_required("encoding", "admin")),
+    __=Depends(role_required("encoding", "admin", "approve_only")),
 ):
     get_current_user_id(authorization)
     status = (body.status or "").strip().lower() or None

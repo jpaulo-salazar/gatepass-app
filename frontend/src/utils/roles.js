@@ -1,5 +1,5 @@
 /**
- * Role-based access. Backend roles: scan_only, encoding, admin, employee (transmittal only).
+ * Role-based access. Backend: scan_only, encoding, admin, employee, approve_only, etc.
  */
 
 /** Gate Pass encoding: form and history only (no User/Product encoding). */
@@ -27,6 +27,7 @@ export const ROLE_DISPLAY_LABELS = {
   encoding: 'Encoding',
   admin: 'Admin',
   employee: 'Employee',
+  approve_only: 'Approve only',
   gatepass_only: 'Encoding',
 };
 
@@ -60,6 +61,13 @@ function normalizePath(path) {
  */
 export function isPathAllowedForRole(role, normalizedPath, user, userSystem = null) {
   const r = role === 'gatepass_only' ? 'encoding' : role;
+  if (r === 'approve_only') {
+    const sys = userSystem || user?.system || SECTION_GATEPASS;
+    if (sys === SECTION_TRANSMITTAL) {
+      return normalizedPath === '/transmittal/approval';
+    }
+    return normalizedPath === '/gatepass/approval';
+  }
   if (r === 'employee') {
     if ((userSystem || user?.system || SECTION_GATEPASS) !== SECTION_TRANSMITTAL) return false;
     if (isReceptionDeskUser(user)) {
@@ -103,6 +111,9 @@ export function canAccessPath(role, path, userSystem, user = null) {
  * @param {object | null} user
  */
 export function getDefaultPath(role, section = SECTION_GATEPASS, user = null) {
+  if (role === 'approve_only') {
+    return section === SECTION_TRANSMITTAL ? '/transmittal/approval' : '/gatepass/approval';
+  }
   if (role === 'employee') {
     return '/transmittal/recipient';
   }

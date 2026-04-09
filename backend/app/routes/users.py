@@ -5,7 +5,7 @@ from app.routes.auth import verify_token, hash_password
 
 router = APIRouter(prefix="/users", tags=["users"])
 
-VALID_ROLES = {"scan_only", "encoding", "admin", "employee"}
+VALID_ROLES = {"scan_only", "encoding", "admin", "employee", "approve_only"}
 SYSTEMS = ("gatepass", "transmittal")
 
 
