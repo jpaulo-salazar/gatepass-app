@@ -16,7 +16,7 @@ const ROLE_ACCESS = {
   /** Fallback for unknown roles; transmittal encoding is handled in isPathAllowedForRole. */
   encoding: [...ROLE_ACCESS_ENCODING_GATEPASS, ...ROLE_ACCESS_ENCODING_TRANSMITTAL],
   admin: ['/gatepass', '/gatepass/history', '/gatepass/approval', '/gatepass/scan', '/users', '/products', '/transmittal', '/transmittal/approval', '/transmittal/history', '/transmittal/scan', '/transmittal/departments', '/transmittal/receptionist', '/transmittal/recipient', '/transmittal/dropoff'],
-  /** Confirms intake at desk (alternative to full receptionist workflow). */
+  /** Optional separate page for desk intake (same backend step as Receptionist Scan; not a substitute). */
   drop_off: ['/transmittal/dropoff'],
 };
 
@@ -31,7 +31,7 @@ export const ROLE_DISPLAY_LABELS = {
   employee: 'Employee',
   approve_only: 'Approve only',
   gatepass_only: 'Encoding',
-  drop_off: 'Drop off',
+  drop_off: 'Drop off (optional)',
 };
 
 /** Human-readable role for header / tables. */
@@ -187,7 +187,7 @@ const NAV_ITEMS = [
   { path: '/transmittal/history', label: 'Transmittal History', section: SECTION_TRANSMITTAL, order: 3 },
   { path: '/transmittal/scan', label: 'Scan Barcode', section: SECTION_TRANSMITTAL, order: 4 },
   { path: '/transmittal/receptionist', label: 'Receptionist Scan', section: SECTION_TRANSMITTAL, order: 5 },
-  { path: '/transmittal/dropoff', label: 'Drop off', section: SECTION_TRANSMITTAL, order: 5.5 },
+  { path: '/transmittal/dropoff', label: 'Drop off (optional)', section: SECTION_TRANSMITTAL, order: 5.5 },
   { path: '/transmittal/recipient', label: 'Recipient Scan', section: SECTION_TRANSMITTAL, order: 6 },
   { path: '/transmittal/departments', label: 'Department Encoding', section: SECTION_TRANSMITTAL, order: 7 },
   { path: '/users', label: 'User Encoding', section: SECTION_TRANSMITTAL, order: 8 },

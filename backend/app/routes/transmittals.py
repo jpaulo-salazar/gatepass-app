@@ -494,6 +494,12 @@ def receive_recipient(
                 )
             if row.get("received_by_recipient_at"):
                 raise HTTPException(status_code=400, detail="Recipient receipt already recorded")
+            selected_recipient_user_id = row.get("recipient_user_id")
+            if selected_recipient_user_id and int(selected_recipient_user_id) != int(user_id):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Only the assigned recipient user can complete this step.",
+                )
             _insert_scan_event(cur, transmittal_id, EVENT_RECIPIENT_RECEIVED, user_id, name)
             cur.execute(
                 """UPDATE transmittals SET received_by_recipient_at = %s, received_by_recipient_name = COALESCE(%s, received_by_recipient_name)

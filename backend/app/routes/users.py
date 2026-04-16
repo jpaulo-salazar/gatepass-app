@@ -122,7 +122,9 @@ def list_users(
     authorization: str = Header(None, alias="Authorization"),
 ):
     uid, system, role = get_current_user(authorization)
-    if role not in ("encoding", "admin", "scan_only", "employee"):
+    if role not in ("encoding", "admin", "scan_only", "employee", "drop_off"):
+        raise HTTPException(status_code=403, detail="Not allowed for your role")
+    if role == "drop_off" and system != "transmittal":
         raise HTTPException(status_code=403, detail="Not allowed for your role")
     if role in ("scan_only", "employee"):
         if system != "transmittal" or not user_is_transmittal_reception_desk(int(uid)):
