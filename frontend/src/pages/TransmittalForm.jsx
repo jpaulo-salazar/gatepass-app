@@ -1,7 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createTransmittal } from '../api';
+import { createTransmittal, getTransmittalEmployeeRecipients } from '../api';
 import { useAuth } from '../context/AuthContext';
+import {
+  MAX_LINE_ITEMS,
+  parseTransmittalLineItemsExcel,
+  downloadTransmittalLineItemsSample,
+} from '../utils/excelLineItems';
 import './Encoding.css';
 import './GatePassForm.css';
 
@@ -14,9 +19,13 @@ export default function TransmittalForm() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [createdTransmittal, setCreatedTransmittal] = useState(null);
+  const [importInfo, setImportInfo] = useState('');
+  const excelInputRef = useRef(null);
+  const [employees, setEmployees] = useState([]);
+  const [loadingEmployees, setLoadingEmployees] = useState(true);
   const [form, setForm] = useState({
     transmittal_date: today(),
-    recipient_name: '',
+    recipient_user_id: '',
     purpose_return: false,
     purpose_inter_warehouse: false,
     purpose_others: false,
@@ -37,6 +46,24 @@ export default function TransmittalForm() {
       setForm((f) => ({ ...f, prepared_by: user.full_name }));
     }
   }, [user]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoadingEmployees(true);
+      try {
+        const data = await getTransmittalEmployeeRecipients();
+        if (!cancelled) setEmployees(data || []);
+      } catch (e) {
+        if (!cancelled) setError(e.message || 'Could not load recipient employees.');
+      } finally {
+        if (!cancelled) setLoadingEmployees(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (createdTransmittal) {
@@ -62,6 +89,35 @@ export default function TransmittalForm() {
     }));
   }
 
+  function handleExcelImport(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError('');
+    setImportInfo('');
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const { items, error: parseErr } = parseTransmittalLineItemsExcel(reader.result);
+        if (parseErr) {
+          setError(parseErr);
+          return;
+        }
+        setForm((f) => ({ ...f, items }));
+        setImportInfo(
+          `Imported ${items.length} line item${items.length === 1 ? '' : 's'} (table replaced). Up to ${MAX_LINE_ITEMS} rows.`,
+        );
+      } catch (err) {
+        setError(err.message || 'Could not read Excel file.');
+      }
+      if (excelInputRef.current) excelInputRef.current.value = '';
+    };
+    reader.onerror = () => {
+      setError('Failed to read file.');
+      if (excelInputRef.current) excelInputRef.current.value = '';
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
   function setPurpose(which) {
     setForm((f) => ({
       ...f,
@@ -74,12 +130,17 @@ export default function TransmittalForm() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
-    setSubmitting(true);
+    setImportInfo('');
     setCreatedTransmittal(null);
+    if (!form.recipient_user_id) {
+      setError('Select a recipient employee (User Encoding → role Employee).');
+      return;
+    }
+    setSubmitting(true);
     try {
       const payload = {
         transmittal_date: form.transmittal_date,
-        recipient_name: form.recipient_name.trim() || '—',
+        recipient_user_id: Number(form.recipient_user_id),
         in_or_out: 'out',
         purpose_return: form.purpose_return,
         purpose_inter_warehouse: form.purpose_inter_warehouse,
@@ -118,10 +179,11 @@ export default function TransmittalForm() {
 
   function createAnother() {
     setCreatedTransmittal(null);
+    setImportInfo('');
     setForm({
       ...form,
       transmittal_date: today(),
-      recipient_name: '',
+      recipient_user_id: '',
       items: [emptyItem()],
     });
   }
@@ -166,14 +228,21 @@ export default function TransmittalForm() {
               />
             </label>
             <label className="gp-field">
-              Recipient name <span className="required">*</span>
-              <input
-                type="text"
-                value={form.recipient_name}
-                onChange={(e) => setForm({ ...form, recipient_name: e.target.value })}
-                placeholder="Person or entity receiving the documents"
+              Recipient (employee) <span className="required">*</span>
+              <select
+                value={form.recipient_user_id}
+                onChange={(e) => setForm({ ...form, recipient_user_id: e.target.value })}
                 required
-              />
+                disabled={loadingEmployees}
+              >
+                <option value="">{loadingEmployees ? 'Loading employees…' : '— Select employee —'}</option>
+                {employees.map((emp) => (
+                  <option key={emp.id} value={String(emp.id)}>
+                    {(emp.full_name || emp.username || '').trim() || `User #${emp.id}`}
+                    {emp.department ? ` — ${emp.department}` : ''}
+                  </option>
+                ))}
+              </select>
             </label>
           </div>
           <p className="scan-desc"><strong>Flow:</strong> Document transmittal is OUT only.</p>
@@ -240,63 +309,85 @@ export default function TransmittalForm() {
 
         <section className="gp-section">
           <h2 className="gp-section-title">Item Details</h2>
-          <table className="gp-items-table">
-            <thead>
-              <tr>
-                <th>Item Description</th>
-                <th>Qty</th>
-                <th>Ref. Doc/Invoice No.</th>
-                <th>Destination</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {form.items.map((it, i) => (
-                <tr key={i}>
-                  <td>
-                    <input
-                      value={it.item_description}
-                      onChange={(e) => updateItem(i, 'item_description', e.target.value)}
-                      placeholder="Description"
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      min={0}
-                      value={it.qty}
-                      onChange={(e) => updateItem(i, 'qty', e.target.value)}
-                      style={{ maxWidth: '100px' }}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      value={it.ref_doc_no}
-                      onChange={(e) => updateItem(i, 'ref_doc_no', e.target.value)}
-                      placeholder="Ref. No."
-                    />
-                  </td>
-                  <td>
-                    <input
-                      value={it.destination}
-                      onChange={(e) => updateItem(i, 'destination', e.target.value)}
-                      placeholder="Destination"
-                    />
-                  </td>
-                  <td>
-                    <button
-                      type="button"
-                      onClick={() => removeItem(i)}
-                      className="gp-btn-remove"
-                      disabled={form.items.length === 1}
-                    >
-                      Remove
-                    </button>
-                  </td>
+          <p className="gp-excel-hint">
+            Bulk lines: download the sample file, fill up to {MAX_LINE_ITEMS} document lines, then import. First row must be
+            headers; each data row needs <strong>Item Description</strong> (other columns optional).
+          </p>
+          {importInfo && <div className="gp-import-info">{importInfo}</div>}
+          <div className="gp-item-excel-actions">
+            <button type="button" className="btn-secondary" onClick={() => downloadTransmittalLineItemsSample()}>
+              Download sample Excel
+            </button>
+            <label className="btn-secondary gp-excel-upload-label">
+              <input
+                ref={excelInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleExcelImport}
+                style={{ display: 'none' }}
+              />
+              Import from Excel
+            </label>
+          </div>
+          <div className="gp-items-table-wrap">
+            <table className="gp-items-table">
+              <thead>
+                <tr>
+                  <th>Item Description</th>
+                  <th>Qty</th>
+                  <th>Ref. Doc/Invoice No.</th>
+                  <th>Destination</th>
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {form.items.map((it, i) => (
+                  <tr key={i}>
+                    <td>
+                      <input
+                        value={it.item_description}
+                        onChange={(e) => updateItem(i, 'item_description', e.target.value)}
+                        placeholder="Description"
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="number"
+                        min={0}
+                        value={it.qty}
+                        onChange={(e) => updateItem(i, 'qty', e.target.value)}
+                        style={{ maxWidth: '100px' }}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        value={it.ref_doc_no}
+                        onChange={(e) => updateItem(i, 'ref_doc_no', e.target.value)}
+                        placeholder="Ref. No."
+                      />
+                    </td>
+                    <td>
+                      <input
+                        value={it.destination}
+                        onChange={(e) => updateItem(i, 'destination', e.target.value)}
+                        placeholder="Destination"
+                      />
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        onClick={() => removeItem(i)}
+                        className="gp-btn-remove"
+                        disabled={form.items.length === 1}
+                      >
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           <button type="button" onClick={addItem} className="gp-btn-add-row">
             + Add row
           </button>

@@ -14,6 +14,7 @@ import TransmittalHistory from './pages/TransmittalHistory'
 import TransmittalScan from './pages/TransmittalScan'
 import TransmittalReceptionist from './pages/TransmittalReceptionist'
 import TransmittalRecipient from './pages/TransmittalRecipient'
+import TransmittalDropOff from './pages/TransmittalDropOff'
 import TransmittalPrintPage from './pages/TransmittalPrintPage'
 import Departments from './pages/Departments'
 import Users from './pages/Users'
@@ -44,6 +45,7 @@ function App() {
         <Route path="transmittal/history" element={<TransmittalHistory />} />
         <Route path="transmittal/scan" element={<TransmittalScan />} />
         <Route path="transmittal/receptionist" element={<TransmittalReceptionist />} />
+        <Route path="transmittal/dropoff" element={<TransmittalDropOff />} />
         <Route path="transmittal/recipient" element={<TransmittalRecipient />} />
         <Route path="transmittal/print" element={<TransmittalPrintPage />} />
         <Route path="users" element={<Users />} />

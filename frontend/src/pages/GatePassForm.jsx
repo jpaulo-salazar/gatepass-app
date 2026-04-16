@@ -1,7 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getProducts, createGatePass } from '../api';
 import { useAuth } from '../context/AuthContext';
+import {
+  MAX_LINE_ITEMS,
+  parseGatePassLineItemsExcel,
+  downloadGatePassLineItemsSample,
+  enrichGatePassItemsFromProducts,
+} from '../utils/excelLineItems';
 import './Encoding.css';
 import './GatePassForm.css';
 
@@ -17,6 +23,8 @@ export default function GatePassForm() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [createdGp, setCreatedGp] = useState(null);
+  const [importInfo, setImportInfo] = useState('');
+  const excelInputRef = useRef(null);
   const [form, setForm] = useState({
     pass_date: today(),
     authorized_name: '',
@@ -87,6 +95,40 @@ export default function GatePassForm() {
     updateItem(index, 'item_description', product.item_description || '');
   }
 
+  function handleExcelImport(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError('');
+    setImportInfo('');
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const { items, error: parseErr } = parseGatePassLineItemsExcel(reader.result);
+        if (parseErr) {
+          setError(parseErr);
+          return;
+        }
+        const enriched = enrichGatePassItemsFromProducts(items, products);
+        if (enriched.length === 0) {
+          setError('No valid rows. Each line needs an item description, or an item code that exists in Product Encoding.');
+          return;
+        }
+        setForm((f) => ({ ...f, items: enriched }));
+        setImportInfo(
+          `Imported ${enriched.length} line item${enriched.length === 1 ? '' : 's'} (table replaced). Up to ${MAX_LINE_ITEMS} rows.`,
+        );
+      } catch (err) {
+        setError(err.message || 'Could not read Excel file.');
+      }
+      if (excelInputRef.current) excelInputRef.current.value = '';
+    };
+    reader.onerror = () => {
+      setError('Failed to read file.');
+      if (excelInputRef.current) excelInputRef.current.value = '';
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
   function setPurpose(which) {
     setForm((f) => ({
       ...f,
@@ -109,6 +151,7 @@ export default function GatePassForm() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
+    setImportInfo('');
     setSubmitting(true);
     setCreatedGp(null);
     try {
@@ -180,6 +223,7 @@ export default function GatePassForm() {
 
   function createAnother() {
     setCreatedGp(null);
+    setImportInfo('');
     setForm(getInitialForm());
   }
 
@@ -273,71 +317,93 @@ export default function GatePassForm() {
         {/* Item Details */}
         <section className="gp-section">
           <h2 className="gp-section-title">Item Details</h2>
-          <table className="gp-items-table">
-            <thead>
-              <tr>
-                <th>Item Code</th>
-                <th>Item Description</th>
-                <th>Qty</th>
-                <th>Ref. Doc/Invoice No.</th>
-                <th>Destination</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {form.items.map((it, i) => (
-                <tr key={i}>
-                  <td>
-                    <select
-                      value={it.item_code || ''}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (val) {
-                          const used = usedItemCodesExcludingRow(i);
-                          if (used.has(val)) return;
-                          const p = products.find((x) => x.item_code === val);
-                          if (p) setItemFromProduct(i, p);
-                          else updateItem(i, 'item_code', val);
-                        } else {
-                          updateItem(i, 'item_code', '');
-                          updateItem(i, 'item_description', '');
-                        }
-                      }}
-                    >
-                      <option value="">—</option>
-                      {products.map((p) => {
-                        const alreadyUsed = usedItemCodesExcludingRow(i).has(p.item_code);
-                        return (
-                          <option key={p.id} value={p.item_code} disabled={alreadyUsed}>
-                            {p.item_code}{alreadyUsed ? ' (already added)' : ''}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </td>
-                  <td>
-                    <input
-                      value={it.item_description}
-                      onChange={(e) => updateItem(i, 'item_description', e.target.value)}
-                      placeholder="Description"
-                    />
-                  </td>
-                  <td>
-                    <input type="number" min={0} value={it.qty} onChange={(e) => updateItem(i, 'qty', e.target.value)} style={{ maxWidth: '100px' }} />
-                  </td>
-                  <td>
-                    <input value={it.ref_doc_no} onChange={(e) => updateItem(i, 'ref_doc_no', e.target.value)} placeholder="Ref. No." />
-                  </td>
-                  <td>
-                    <input value={it.destination} onChange={(e) => updateItem(i, 'destination', e.target.value)} placeholder="Destination" />
-                  </td>
-                  <td>
-                    <button type="button" onClick={() => removeItem(i)} className="gp-btn-remove" disabled={form.items.length === 1}>Remove</button>
-                  </td>
+          <p className="gp-excel-hint">
+            Bulk lines: download the sample file, fill up to {MAX_LINE_ITEMS} rows, then import. Rows without{' '}
+            <strong>Item Description</strong> are skipped; if you only enter <strong>Item Code</strong>, the description is filled from Product Encoding when the code matches.
+          </p>
+          {importInfo && <div className="gp-import-info">{importInfo}</div>}
+          <div className="gp-item-excel-actions">
+            <button type="button" className="btn-secondary" onClick={() => downloadGatePassLineItemsSample()}>
+              Download sample Excel
+            </button>
+            <label className="btn-secondary gp-excel-upload-label">
+              <input
+                ref={excelInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleExcelImport}
+                style={{ display: 'none' }}
+              />
+              Import from Excel
+            </label>
+          </div>
+          <div className="gp-items-table-wrap">
+            <table className="gp-items-table">
+              <thead>
+                <tr>
+                  <th>Item Code</th>
+                  <th>Item Description</th>
+                  <th>Qty</th>
+                  <th>Ref. Doc/Invoice No.</th>
+                  <th>Destination</th>
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {form.items.map((it, i) => (
+                  <tr key={i}>
+                    <td>
+                      <select
+                        value={it.item_code || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val) {
+                            const used = usedItemCodesExcludingRow(i);
+                            if (used.has(val)) return;
+                            const p = products.find((x) => x.item_code === val);
+                            if (p) setItemFromProduct(i, p);
+                            else updateItem(i, 'item_code', val);
+                          } else {
+                            updateItem(i, 'item_code', '');
+                            updateItem(i, 'item_description', '');
+                          }
+                        }}
+                      >
+                        <option value="">—</option>
+                        {products.map((p) => {
+                          const alreadyUsed = usedItemCodesExcludingRow(i).has(p.item_code);
+                          return (
+                            <option key={p.id} value={p.item_code} disabled={alreadyUsed}>
+                              {p.item_code}{alreadyUsed ? ' (already added)' : ''}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </td>
+                    <td>
+                      <input
+                        value={it.item_description}
+                        onChange={(e) => updateItem(i, 'item_description', e.target.value)}
+                        placeholder="Description"
+                      />
+                    </td>
+                    <td>
+                      <input type="number" min={0} value={it.qty} onChange={(e) => updateItem(i, 'qty', e.target.value)} style={{ maxWidth: '100px' }} />
+                    </td>
+                    <td>
+                      <input value={it.ref_doc_no} onChange={(e) => updateItem(i, 'ref_doc_no', e.target.value)} placeholder="Ref. No." />
+                    </td>
+                    <td>
+                      <input value={it.destination} onChange={(e) => updateItem(i, 'destination', e.target.value)} placeholder="Destination" />
+                    </td>
+                    <td>
+                      <button type="button" onClick={() => removeItem(i)} className="gp-btn-remove" disabled={form.items.length === 1}>Remove</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           <button type="button" onClick={addItem} className="gp-btn-add-row">+ Add row</button>
         </section>
 

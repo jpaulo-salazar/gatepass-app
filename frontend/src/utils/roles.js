@@ -15,7 +15,9 @@ const ROLE_ACCESS = {
   employee: ['/transmittal/recipient'],
   /** Fallback for unknown roles; transmittal encoding is handled in isPathAllowedForRole. */
   encoding: [...ROLE_ACCESS_ENCODING_GATEPASS, ...ROLE_ACCESS_ENCODING_TRANSMITTAL],
-  admin: ['/gatepass', '/gatepass/history', '/gatepass/approval', '/gatepass/scan', '/users', '/products', '/transmittal', '/transmittal/approval', '/transmittal/history', '/transmittal/scan', '/transmittal/departments', '/transmittal/receptionist', '/transmittal/recipient'],
+  admin: ['/gatepass', '/gatepass/history', '/gatepass/approval', '/gatepass/scan', '/users', '/products', '/transmittal', '/transmittal/approval', '/transmittal/history', '/transmittal/scan', '/transmittal/departments', '/transmittal/receptionist', '/transmittal/recipient', '/transmittal/dropoff'],
+  /** Confirms intake at desk (alternative to full receptionist workflow). */
+  drop_off: ['/transmittal/dropoff'],
 };
 
 /** Sections: gatepass | transmittal (no separate encoding section; User/Product are in Gate Pass top menu, User only in Transmittal). */
@@ -29,12 +31,22 @@ export const ROLE_DISPLAY_LABELS = {
   employee: 'Employee',
   approve_only: 'Approve only',
   gatepass_only: 'Encoding',
+  drop_off: 'Drop off',
 };
 
 /** Human-readable role for header / tables. */
 export function getRoleDisplayLabel(role) {
   const r = role === 'gatepass_only' ? 'encoding' : role;
   return ROLE_DISPLAY_LABELS[r] || role || '—';
+}
+
+/** True only for admin accounts (case-insensitive). Use for destructive or admin-only UI. */
+export function isAdminUser(user) {
+  if (!user) return false;
+  const r = String(user.role || '')
+    .trim()
+    .toLowerCase();
+  return r === 'admin';
 }
 
 /** Transmittal user whose department is marked as reception desk (User Encoding). */
@@ -52,7 +64,7 @@ function getPathSystem(pathname, userSystem) {
 }
 
 function normalizePath(path) {
-  return path === '/gatepass/scan' ? '/gatepass/scan' : path === '/gatepass' ? '/gatepass' : path === '/gatepass/approval' ? '/gatepass/approval' : path === '/gatepass/history' ? '/gatepass/history' : path === '/gatepass/print' ? '/gatepass/print' : path === '/users' ? '/users' : path === '/products' ? '/products' : path === '/transmittal' ? '/transmittal' : path === '/transmittal/approval' ? '/transmittal/approval' : path === '/transmittal/history' ? '/transmittal/history' : path === '/transmittal/scan' ? '/transmittal/scan' : path === '/transmittal/departments' ? '/transmittal/departments' : path === '/transmittal/receptionist' ? '/transmittal/receptionist' : path === '/transmittal/recipient' ? '/transmittal/recipient' : path === '/transmittal/print' ? '/transmittal/print' : '/gatepass';
+  return path === '/gatepass/scan' ? '/gatepass/scan' : path === '/gatepass' ? '/gatepass' : path === '/gatepass/approval' ? '/gatepass/approval' : path === '/gatepass/history' ? '/gatepass/history' : path === '/gatepass/print' ? '/gatepass/print' : path === '/users' ? '/users' : path === '/products' ? '/products' : path === '/transmittal' ? '/transmittal' : path === '/transmittal/approval' ? '/transmittal/approval' : path === '/transmittal/history' ? '/transmittal/history' : path === '/transmittal/scan' ? '/transmittal/scan' : path === '/transmittal/departments' ? '/transmittal/departments' : path === '/transmittal/receptionist' ? '/transmittal/receptionist' : path === '/transmittal/recipient' ? '/transmittal/recipient' : path === '/transmittal/dropoff' ? '/transmittal/dropoff' : path === '/transmittal/print' ? '/transmittal/print' : '/gatepass';
 }
 
 /**
@@ -61,6 +73,10 @@ function normalizePath(path) {
  */
 export function isPathAllowedForRole(role, normalizedPath, user, userSystem = null) {
   const r = role === 'gatepass_only' ? 'encoding' : role;
+  if (r === 'drop_off') {
+    if ((userSystem || user?.system || SECTION_GATEPASS) !== SECTION_TRANSMITTAL) return false;
+    return normalizedPath === '/transmittal/dropoff';
+  }
   if (r === 'approve_only') {
     const sys = userSystem || user?.system || SECTION_GATEPASS;
     if (sys === SECTION_TRANSMITTAL) {
@@ -100,6 +116,7 @@ export function isPathAllowedForRole(role, normalizedPath, user, userSystem = nu
 export function canAccessPath(role, path, userSystem, user = null) {
   if (path === '/products' && userSystem !== SECTION_GATEPASS) return false;
   const r = role === 'gatepass_only' ? 'encoding' : role;
+  if (r === 'drop_off' && userSystem !== SECTION_TRANSMITTAL) return false;
   if (r === 'employee' && userSystem !== SECTION_TRANSMITTAL) return false;
   const pathSection = getPathSystem(path, userSystem);
   if (pathSection !== userSystem) return false;
@@ -113,6 +130,9 @@ export function canAccessPath(role, path, userSystem, user = null) {
 export function getDefaultPath(role, section = SECTION_GATEPASS, user = null) {
   if (role === 'approve_only') {
     return section === SECTION_TRANSMITTAL ? '/transmittal/approval' : '/gatepass/approval';
+  }
+  if (role === 'drop_off') {
+    return '/transmittal/dropoff';
   }
   if (role === 'employee') {
     return '/transmittal/recipient';
@@ -138,7 +158,7 @@ export function getSectionFromPath(pathname, userSystem) {
 
 /** Only Gate Pass and Transmittal sections (no separate User & Product section). */
 export function getAllowedSections(role, userSystem) {
-  if (role === 'employee') {
+  if (role === 'employee' || role === 'drop_off') {
     return [SECTION_TRANSMITTAL];
   }
   return [userSystem];
@@ -167,6 +187,7 @@ const NAV_ITEMS = [
   { path: '/transmittal/history', label: 'Transmittal History', section: SECTION_TRANSMITTAL, order: 3 },
   { path: '/transmittal/scan', label: 'Scan Barcode', section: SECTION_TRANSMITTAL, order: 4 },
   { path: '/transmittal/receptionist', label: 'Receptionist Scan', section: SECTION_TRANSMITTAL, order: 5 },
+  { path: '/transmittal/dropoff', label: 'Drop off', section: SECTION_TRANSMITTAL, order: 5.5 },
   { path: '/transmittal/recipient', label: 'Recipient Scan', section: SECTION_TRANSMITTAL, order: 6 },
   { path: '/transmittal/departments', label: 'Department Encoding', section: SECTION_TRANSMITTAL, order: 7 },
   { path: '/users', label: 'User Encoding', section: SECTION_TRANSMITTAL, order: 8 },

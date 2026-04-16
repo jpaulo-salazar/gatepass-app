@@ -155,6 +155,30 @@
   cursor: pointer;
 }
 
+/* Scrollable line items (gate pass + transmittal encoding) */
+.gp-items-table-wrap {
+  max-height: min(55vh, 520px);
+  overflow: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.gp-items-table-wrap .gp-items-table {
+  margin-bottom: 0;
+}
+
+.gp-items-table-wrap thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #edf2f7;
+  box-shadow: 0 1px 0 #e2e8f0;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
 .gp-items-table {
   width: 100%;
   border-collapse: collapse;
@@ -314,6 +338,59 @@
 }
 
 .gp-export-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.gp-excel-hint {
+  font-size: 0.875rem;
+  color: #4a5568;
+  margin: 0 0 0.75rem;
+  line-height: 1.45;
+  max-width: 52rem;
+}
+
+.gp-import-info {
+  font-size: 0.875rem;
+  color: #276749;
+  background: #f0fff4;
+  border: 1px solid #9ae6b4;
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.gp-item-excel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.gp-excel-upload-label {
+  cursor: pointer;
+  display: inline-block;
+}
+
+.gp-clear-history-btn {
+  padding: 0.5rem 1rem;
+  background: #fff;
+  color: #9b2c2c;
+  border: 1px solid #feb2b2;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.gp-clear-history-btn:hover:not(:disabled) {
+  background: #fff5f5;
+  border-color: #c53030;
+  color: #822727;
+}
+
+.gp-clear-history-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }

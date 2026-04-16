@@ -1,6 +1,7 @@
 from datetime import datetime, date as date_type
 from fastapi import APIRouter, Header, HTTPException, Depends
 from app.database import get_db
+from app.document_series import KIND_TRANSMITTAL, allocate_yyyy_nnnn_number
 from app.schemas import (
     TransmittalCreate,
     TransmittalResponse,
@@ -105,6 +106,7 @@ def _row_to_response(row, items_rows, scan_events: list[TransmittalScanEventResp
         transmittal_number=row["transmittal_number"],
         transmittal_date=row["transmittal_date"],
         recipient_name=row["recipient_name"],
+        recipient_department_id=row.get("recipient_department_id"),
         in_or_out=row.get("in_or_out") or "out",
         purpose_return=bool(row["purpose_return"]),
         purpose_inter_warehouse=bool(row["purpose_inter_warehouse"]),
@@ -163,6 +165,33 @@ def list_transmittals(
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT * FROM transmittals ORDER BY id DESC")
+            rows = cur.fetchall()
+            result = []
+            for r in rows:
+                cur.execute("SELECT * FROM transmittal_items WHERE transmittal_id = %s ORDER BY id", (r["id"],))
+                items = cur.fetchall()
+                result.append(_row_to_response(r, items))
+    return result
+
+
+@router.get("/my-upcoming", response_model=list[TransmittalResponse])
+def list_my_upcoming_transmittals(
+    authorization: str = Header(None, alias="Authorization"),
+    _=Depends(require_system("transmittal")),
+    __=Depends(role_required("employee")),
+):
+    """Approved transmittals assigned to the logged-in employee recipient, not yet received by recipient."""
+    uid = int(get_current_user_id(authorization))
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT * FROM transmittals
+                   WHERE recipient_user_id = %s
+                     AND LOWER(COALESCE(status,'')) = 'approved'
+                     AND received_by_recipient_at IS NULL
+                   ORDER BY transmittal_date DESC, id DESC""",
+                (uid,),
+            )
             rows = cur.fetchall()
             result = []
             for r in rows:
@@ -231,7 +260,7 @@ def record_out_barcode_scan(
                     detail="Only approved OUT transmittals can be scanned for receipt.",
                 )
             if phase == "receptionist":
-                if jwt_role in ("encoding", "admin"):
+                if jwt_role in ("encoding", "admin", "drop_off"):
                     pass
                 elif jwt_role in ("scan_only", "employee"):
                     cur.execute(
@@ -250,56 +279,66 @@ def record_out_barcode_scan(
                 else:
                     raise HTTPException(
                         status_code=403,
-                        detail="Only encoding, admin, or reception-desk scan/employee users can complete the receptionist step.",
+                        detail="Only encoding, admin, drop off, or reception-desk scan/employee users can complete the receptionist step.",
                     )
                 if row.get("received_by_receptionist_at"):
                     raise HTTPException(
                         status_code=400,
                         detail="Receptionist step is already done. Recipient should scan the barcode next.",
                     )
-                recipient_department_id = body.recipient_department_id
-                recipient_user_id = body.recipient_user_id
-                if not recipient_user_id:
-                    raise HTTPException(status_code=400, detail="recipient_user_id is required")
-                recipient_department = None
-                if recipient_department_id:
+                # Pre-assigned recipient on transmittal form — confirm intake only (no dropdown data required).
+                if row.get("recipient_user_id"):
+                    _insert_scan_event(cur, transmittal_id, EVENT_RECEPTIONIST_OUT_SCAN, user_id, fn)
                     cur.execute(
-                        "SELECT id, name FROM departments WHERE id = %s AND `system` = 'transmittal'",
-                        (recipient_department_id,),
+                        """UPDATE transmittals SET received_by_receptionist_at = %s,
+                           received_by_receptionist_name = COALESCE(%s, received_by_receptionist_name)
+                           WHERE id = %s""",
+                        (now, fn, transmittal_id),
                     )
-                    drow = cur.fetchone()
-                    if not drow:
-                        raise HTTPException(status_code=400, detail="Invalid recipient_department_id")
-                    recipient_department = drow["name"]
                 else:
-                    recipient_department = (body.recipient_department or "").strip() or None
-                    if not recipient_department:
-                        raise HTTPException(
-                            status_code=400,
-                            detail="recipient_department_id (or legacy recipient_department) is required",
+                    recipient_department_id = body.recipient_department_id
+                    recipient_user_id = body.recipient_user_id
+                    if not recipient_user_id:
+                        raise HTTPException(status_code=400, detail="recipient_user_id is required")
+                    recipient_department = None
+                    if recipient_department_id:
+                        cur.execute(
+                            "SELECT id, name FROM departments WHERE id = %s AND `system` = 'transmittal'",
+                            (recipient_department_id,),
                         )
-                cur.execute(
-                    "SELECT id, full_name, department_id FROM users WHERE id = %s AND `system` = 'transmittal'",
-                    (recipient_user_id,),
-                )
-                recipient_user = cur.fetchone()
-                if not recipient_user:
-                    raise HTTPException(status_code=400, detail="Selected recipient user does not exist")
-                if recipient_department_id:
-                    rdept = recipient_user.get("department_id")
-                    if rdept is None or int(rdept) != int(recipient_department_id):
-                        raise HTTPException(status_code=400, detail="Selected user is not in the chosen department")
-                recipient_user_name = (recipient_user.get("full_name") or "").strip() or None
-                _insert_scan_event(cur, transmittal_id, EVENT_RECEPTIONIST_OUT_SCAN, user_id, fn)
-                cur.execute(
-                    """UPDATE transmittals SET received_by_receptionist_at = %s,
-                       received_by_receptionist_name = COALESCE(%s, received_by_receptionist_name),
-                       recipient_department = %s,
-                       recipient_user_id = %s,
-                       recipient_user_name = %s
-                       WHERE id = %s""",
-                    (now, fn, recipient_department, recipient_user_id, recipient_user_name, transmittal_id),
-                )
+                        drow = cur.fetchone()
+                        if not drow:
+                            raise HTTPException(status_code=400, detail="Invalid recipient_department_id")
+                        recipient_department = drow["name"]
+                    else:
+                        recipient_department = (body.recipient_department or "").strip() or None
+                        if not recipient_department:
+                            raise HTTPException(
+                                status_code=400,
+                                detail="recipient_department_id (or legacy recipient_department) is required",
+                            )
+                    cur.execute(
+                        "SELECT id, full_name, department_id FROM users WHERE id = %s AND `system` = 'transmittal'",
+                        (recipient_user_id,),
+                    )
+                    recipient_user = cur.fetchone()
+                    if not recipient_user:
+                        raise HTTPException(status_code=400, detail="Selected recipient user does not exist")
+                    if recipient_department_id:
+                        rdept = recipient_user.get("department_id")
+                        if rdept is None or int(rdept) != int(recipient_department_id):
+                            raise HTTPException(status_code=400, detail="Selected user is not in the chosen department")
+                    recipient_user_name = (recipient_user.get("full_name") or "").strip() or None
+                    _insert_scan_event(cur, transmittal_id, EVENT_RECEPTIONIST_OUT_SCAN, user_id, fn)
+                    cur.execute(
+                        """UPDATE transmittals SET received_by_receptionist_at = %s,
+                           received_by_receptionist_name = COALESCE(%s, received_by_receptionist_name),
+                           recipient_department = %s,
+                           recipient_user_id = %s,
+                           recipient_user_name = %s
+                           WHERE id = %s""",
+                        (now, fn, recipient_department, recipient_user_id, recipient_user_name, transmittal_id),
+                    )
             else:
                 if jwt_role in ("encoding", "admin", "employee"):
                     pass
@@ -464,23 +503,23 @@ def receive_recipient(
             return _response_from_id(cur, transmittal_id, True)
 
 
-def _next_transmittal_number_for_year(cursor, year: int) -> str:
-    """Same format as gate pass: YYYY + 4-digit sequence, e.g. 20260001."""
-    prefix = str(year)
-    cursor.execute(
-        "SELECT MAX(transmittal_number) AS max_num FROM transmittals WHERE transmittal_number LIKE %s AND LENGTH(transmittal_number) = 8",
-        (f"{prefix}%",),
-    )
-    row = cursor.fetchone()
-    max_num = row.get("max_num") if row else None
-    if max_num and max_num.startswith(prefix):
-        try:
-            seq = int(max_num[4:], 10) + 1
-        except ValueError:
-            seq = 1
-    else:
-        seq = 1
-    return f"{prefix}{seq:04d}"
+@router.post("/clear-history")
+def clear_transmittal_history(
+    authorization: str = Header(None, alias="Authorization"),
+    _=Depends(require_system("transmittal")),
+    __=Depends(role_required("admin")),
+):
+    """Remove all transmittals, line items, and scan events. Transmittal numbers (YYYYNNNN) continue from the stored counter."""
+    get_current_user_id(authorization)
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) AS c FROM transmittals")
+            n = int(cur.fetchone()["c"])
+            cur.execute("DELETE FROM transmittals")
+    return {
+        "deleted": n,
+        "message": "All transmittals removed. New transmittals will use the next sequence number (not reset to 0001).",
+    }
 
 
 @router.post("", response_model=TransmittalResponse)
@@ -493,21 +532,43 @@ def create_transmittal(
     get_current_user_id(authorization)
     with get_db() as conn:
         with conn.cursor() as cur:
+            cur.execute(
+                """SELECT u.id, u.username, u.full_name, u.department_id, d.name AS dept_name
+                   FROM users u
+                   LEFT JOIN departments d ON u.department_id = d.id
+                   WHERE u.id = %s AND u.`system` = 'transmittal' AND u.role = 'employee'""",
+                (body.recipient_user_id,),
+            )
+            ru = cur.fetchone()
+            if not ru:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Recipient must be a Transmittal user with role Employee (User Encoding).",
+                )
+            disp = (ru.get("full_name") or "").strip() or (ru.get("username") or "").strip() or str(ru["id"])
+            ru_name = (ru.get("full_name") or "").strip() or None
+            ru_dept_id = ru.get("department_id")
+            ru_dept_name = (ru.get("dept_name") or "").strip() or None
             year = body.transmittal_date.year if hasattr(body.transmittal_date, "year") else int(str(body.transmittal_date)[:4])
-            transmittal_number = _next_transmittal_number_for_year(cur, year)
+            transmittal_number = allocate_yyyy_nnnn_number(cur, KIND_TRANSMITTAL, year)
             in_out = "out"
             init_status = "pending"
             init_date_approved = None
             cur.execute(
-                """INSERT INTO transmittals (transmittal_number, transmittal_date, recipient_name, in_or_out,
+                """INSERT INTO transmittals (transmittal_number, transmittal_date, recipient_name, recipient_department_id,
+                   recipient_department, recipient_user_id, recipient_user_name, in_or_out,
                    purpose_return, purpose_inter_warehouse, purpose_others,
                    vehicle_type, plate_no, truck_seal_no, prepared_by, checked_by, recommended_by, approved_by, time_out, time_in,
                    status, date_approved)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                 (
                     transmittal_number,
                     body.transmittal_date,
-                    body.recipient_name,
+                    disp,
+                    ru_dept_id,
+                    ru_dept_name,
+                    body.recipient_user_id,
+                    ru_name,
                     in_out,
                     int(body.purpose_return),
                     int(body.purpose_inter_warehouse),

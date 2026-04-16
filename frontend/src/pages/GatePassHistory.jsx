@@ -1,15 +1,20 @@
 import { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import { getGatePasses } from '../api';
+import { getGatePasses, clearGatePassHistory } from '../api';
+import { useAuth } from '../context/AuthContext';
+import { isAdminUser } from '../utils/roles';
 import './GatePassForm.css';
 import './Scan.css';
 
 export default function GatePassHistory() {
+  const { user } = useAuth();
+  const showClearHistoryButton = isAdminUser(user);
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [viewGp, setViewGp] = useState(null);
   const [search, setSearch] = useState('');
+  const [clearing, setClearing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -126,6 +131,28 @@ export default function GatePassHistory() {
     XLSX.writeFile(wb, `gate-pass-history-${dateStr}.xlsx`);
   }
 
+  async function handleClearHistory() {
+    if (
+      !window.confirm(
+        'Delete ALL gate passes (including pending and not only this list)? This cannot be undone. New passes will keep the next number in sequence (e.g. after 20260042, the next will not restart at 20260001).',
+      )
+    ) {
+      return;
+    }
+    setClearing(true);
+    setError('');
+    try {
+      await clearGatePassHistory();
+      const data = await getGatePasses();
+      setList(data);
+      setViewGp(null);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setClearing(false);
+    }
+  }
+
   return (
     <div className="gatepass-form-page encoding-page">
       <h1>Gate Pass History</h1>
@@ -153,6 +180,17 @@ export default function GatePassHistory() {
           >
             Export to Excel
           </button>
+          {showClearHistoryButton && (
+            <button
+              type="button"
+              onClick={handleClearHistory}
+              className="gp-clear-history-btn"
+              disabled={clearing || list.length === 0}
+              title="Remove all gate passes from the database (admin)"
+            >
+              {clearing ? 'Clearing…' : 'Clear history'}
+            </button>
+          )}
         </div>
         <div className="gp-history-wrap">
           <table className="gp-history-table">

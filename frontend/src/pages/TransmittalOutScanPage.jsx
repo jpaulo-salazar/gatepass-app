@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { formatIsoDateTimeDisplay } from '../utils/dateTime';
 import './Scan.css';
 
-export default function TransmittalOutScanPage({ phase = 'receptionist' }) {
+export default function TransmittalOutScanPage({ phase = 'receptionist', pageTitle, pageDescription }) {
   const { user: authUser } = useAuth();
   const isReceptionist = phase === 'receptionist';
   const [manualNum, setManualNum] = useState('');
@@ -86,24 +86,28 @@ export default function TransmittalOutScanPage({ phase = 'receptionist' }) {
       setError('Only approved OUT transmittals can be processed here.');
       return;
     }
+    const preAssignedRecipient = !!(target.recipient_user_id != null && String(target.recipient_user_id).trim() !== '');
     if (isReceptionist) {
-      if (!recipientDepartmentId) {
-        setError('Recipient department is required.');
-        return;
-      }
-      if (!recipientUserId) {
-        setError('Recipient user is required.');
-        return;
+      if (!preAssignedRecipient) {
+        if (!recipientDepartmentId) {
+          setError('Recipient department is required.');
+          return;
+        }
+        if (!recipientUserId) {
+          setError('Recipient user is required.');
+          return;
+        }
       }
     }
     setSubmitting(true);
     setError('');
     try {
-      const next = await recordTransmittalOutBarcodeScan(target.id, {
-        phase,
-        recipient_department_id: isReceptionist ? Number(recipientDepartmentId) : undefined,
-        recipient_user_id: isReceptionist ? Number(recipientUserId) : undefined,
-      });
+      const payload = { phase };
+      if (isReceptionist && !preAssignedRecipient) {
+        payload.recipient_department_id = Number(recipientDepartmentId);
+        payload.recipient_user_id = Number(recipientUserId);
+      }
+      const next = await recordTransmittalOutBarcodeScan(target.id, payload);
       setTransmittal(next);
     } catch (e) {
       setError(e.message || 'Could not record scan');
@@ -148,11 +152,15 @@ export default function TransmittalOutScanPage({ phase = 'receptionist' }) {
 
   return (
     <div className="scan-page">
-      <h1>{isReceptionist ? 'Transmittal Receptionist Scan' : 'Transmittal Recipient Scan'}</h1>
+      <h1>
+        {pageTitle ||
+          (isReceptionist ? 'Transmittal Receptionist Scan' : 'Transmittal Recipient Scan')}
+      </h1>
       <p className="scan-desc">
-        {isReceptionist
-          ? 'Look up an approved OUT transmittal (barcode on the printed form or type the number), choose recipient department and user, then record receptionist receipt.'
-          : 'Look up an approved OUT transmittal assigned to you, then record recipient receipt.'}
+        {pageDescription ||
+          (isReceptionist
+            ? 'Look up an approved OUT transmittal (barcode on the printed form or type the number). If the recipient was set on the transmittal form, confirm desk intake only; otherwise choose department and user, then record receptionist receipt.'
+            : 'Look up an approved OUT transmittal assigned to you, then record recipient receipt. Your upcoming list is shown above.')}
       </p>
       {isReceptionist && (
         <p className="gp-scan-hint">
@@ -219,44 +227,65 @@ export default function TransmittalOutScanPage({ phase = 'receptionist' }) {
 
           {isReceptionist && isApprovedOutTransmittal(transmittal) && !transmittal.received_by_receptionist_at && (
             <div className="gp-actions" style={{ display: 'grid', gap: '8px', maxWidth: 560 }}>
-              <label>
-                Recipient Department
-                <select
-                  value={recipientDepartmentId}
-                  onChange={(e) => {
-                    setRecipientDepartmentId(e.target.value);
-                    setRecipientUserId('');
-                  }}
-                >
-                  <option value="">Select department</option>
-                  {departments.map((d) => (
-                    <option key={d.id} value={d.id}>{d.name}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Recipient User
-                <select
-                  value={recipientUserId}
-                  onChange={(e) => setRecipientUserId(e.target.value)}
-                  disabled={!recipientDepartmentId}
-                >
-                  <option value="">{recipientDepartmentId ? 'Select user' : 'Choose a department first'}</option>
-                  {usersInSelectedDept.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.full_name || u.username}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button
-                type="button"
-                className="btn-primary"
-                disabled={submitting}
-                onClick={() => submitStep(transmittal)}
-              >
-                {submitting ? 'Saving...' : 'Record Receptionist Receipt'}
-              </button>
+              {transmittal.recipient_user_id != null && String(transmittal.recipient_user_id).trim() !== '' ? (
+                <>
+                  <p className="gp-scan-hint">
+                    <strong>Recipient set on transmittal form:</strong>{' '}
+                    {transmittal.recipient_user_name || transmittal.recipient_name || '—'}
+                    {transmittal.recipient_department ? ` (${transmittal.recipient_department})` : ''}. Confirm physical
+                    handoff at the desk.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    disabled={submitting}
+                    onClick={() => submitStep(transmittal)}
+                  >
+                    {submitting ? 'Saving…' : 'Record receptionist receipt'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <label>
+                    Recipient Department
+                    <select
+                      value={recipientDepartmentId}
+                      onChange={(e) => {
+                        setRecipientDepartmentId(e.target.value);
+                        setRecipientUserId('');
+                      }}
+                    >
+                      <option value="">Select department</option>
+                      {departments.map((d) => (
+                        <option key={d.id} value={d.id}>{d.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Recipient User
+                    <select
+                      value={recipientUserId}
+                      onChange={(e) => setRecipientUserId(e.target.value)}
+                      disabled={!recipientDepartmentId}
+                    >
+                      <option value="">{recipientDepartmentId ? 'Select user' : 'Choose a department first'}</option>
+                      {usersInSelectedDept.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.full_name || u.username}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    disabled={submitting}
+                    onClick={() => submitStep(transmittal)}
+                  >
+                    {submitting ? 'Saving…' : 'Record Receptionist Receipt'}
+                  </button>
+                </>
+              )}
             </div>
           )}
 

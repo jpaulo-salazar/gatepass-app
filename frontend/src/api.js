@@ -139,9 +139,24 @@ export async function updateGatePassStatus(id, { status, rejected_remarks, appro
   });
 }
 
+/** Admin only. Deletes all gate passes; YYYYNNNN series continues from stored counter. */
+export async function clearGatePassHistory() {
+  return api('/gate-passes/clear-history', { method: 'POST', headers: getAuthHeader() });
+}
+
 // Document Transmittals
 export async function getTransmittals() {
   return api('/transmittals', { headers: getAuthHeader() });
+}
+
+/** Employee: approved transmittals assigned to you, not yet received. */
+export async function getMyUpcomingTransmittals() {
+  return api('/transmittals/my-upcoming', { headers: getAuthHeader() });
+}
+
+/** Encoding/admin: Transmittal employees for recipient dropdown on the form. */
+export async function getTransmittalEmployeeRecipients() {
+  return api('/users/transmittal-employee-recipients', { headers: getAuthHeader() });
 }
 export async function getTransmittal(id) {
   return api(`/transmittals/${id}`, { headers: getAuthHeader() });
@@ -157,7 +172,7 @@ export async function recordTransmittalOutBarcodeScan(id, { phase, recipient_dep
       phase,
       recipient_department_id: recipient_department_id != null ? recipient_department_id : null,
       recipient_department: recipient_department || null,
-      recipient_user_id: recipient_user_id || null,
+      recipient_user_id: recipient_user_id != null && recipient_user_id !== '' ? recipient_user_id : null,
     }),
     headers: getAuthHeader(),
   });
@@ -192,4 +207,9 @@ export async function receiveTransmittalRecipient(id, { received_by } = {}) {
     body: JSON.stringify({ received_by: received_by || null }),
     headers: getAuthHeader(),
   });
+}
+
+/** Admin only. Deletes all transmittals; YYYYNNNN series continues from stored counter. */
+export async function clearTransmittalHistory() {
+  return api('/transmittals/clear-history', { method: 'POST', headers: getAuthHeader() });
 }

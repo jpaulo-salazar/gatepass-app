@@ -96,6 +96,7 @@ CREATE TABLE IF NOT EXISTS transmittals (
     transmittal_number VARCHAR(50) UNIQUE NOT NULL,
     transmittal_date DATE NOT NULL,
     recipient_name VARCHAR(255) NOT NULL,
+    recipient_department_id INT NULL,
     in_or_out VARCHAR(10) DEFAULT 'out',
     status VARCHAR(20) DEFAULT 'pending',
     rejected_remarks TEXT,
@@ -142,4 +143,12 @@ CREATE TABLE IF NOT EXISTS transmittal_scan_events (
     FOREIGN KEY (transmittal_id) REFERENCES transmittals(id) ON DELETE CASCADE,
     KEY idx_transmittal_scan_events_transmittal (transmittal_id),
     KEY idx_transmittal_scan_events_created (created_at)
+);
+
+-- Last issued sequence per year (gate pass / transmittal); survives "clear history"
+CREATE TABLE IF NOT EXISTS document_series (
+    kind VARCHAR(32) NOT NULL,
+    year INT NOT NULL,
+    last_seq INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (kind, year)
 );

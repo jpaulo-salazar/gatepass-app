@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { getProducts, createProduct, createProductsBulk, updateProduct, deleteProduct } from '../api';
+import { downloadProductEncodingSample } from '../utils/excelLineItems';
 import './Encoding.css';
 
 const EXCEL_HEADERS = { itemNo: 'Item No.', itemDesc: 'Item Description', itemGroup: 'Item Group' };
@@ -183,6 +184,9 @@ export default function Products() {
       )}
       <div className="encoding-actions">
         <button type="button" onClick={openCreate} className="btn-primary">Add Product</button>
+        <button type="button" className="btn-secondary" onClick={() => downloadProductEncodingSample()}>
+          Download sample Excel
+        </button>
         <label className="btn-secondary encoding-upload-label">
           <input
             ref={fileInputRef}

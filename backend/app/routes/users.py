@@ -5,7 +5,7 @@ from app.routes.auth import verify_token, hash_password
 
 router = APIRouter(prefix="/users", tags=["users"])
 
-VALID_ROLES = {"scan_only", "encoding", "admin", "employee", "approve_only"}
+VALID_ROLES = {"scan_only", "encoding", "admin", "employee", "approve_only", "drop_off"}
 SYSTEMS = ("gatepass", "transmittal")
 
 
@@ -14,6 +14,8 @@ def _validate_role_for_system(role: str, system: str) -> str:
         return "encoding"
     if role == "employee" and system != "transmittal":
         raise HTTPException(400, detail="Employee role is only valid for Transmittal system users")
+    if role == "drop_off" and system != "transmittal":
+        raise HTTPException(400, detail="Drop off role is only valid for Transmittal system users")
     return role
 
 
@@ -79,6 +81,40 @@ def user_is_transmittal_reception_desk(user_id: int) -> bool:
             )
             row = cur.fetchone()
     return bool(row and int(row.get("v") or 0))
+
+
+@router.get("/transmittal-employee-recipients", response_model=list[UserResponse])
+def list_transmittal_employee_recipients(
+    authorization: str = Header(None, alias="Authorization"),
+    _=Depends(require_system("transmittal")),
+    __=Depends(role_required("encoding", "admin")),
+):
+    """Users with role Employee (transmittal) — recipients for the transmittal form dropdown."""
+    get_current_user_id(authorization)
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT u.id, u.username, u.full_name, u.department_id, d.name AS department,
+                          COALESCE(d.is_reception_desk, 0) AS department_is_reception_desk, u.role, u.`system`
+                   FROM users u
+                   LEFT JOIN departments d ON u.department_id = d.id
+                   WHERE u.`system` = 'transmittal' AND u.role = 'employee'
+                   ORDER BY COALESCE(u.full_name, u.username)""",
+            )
+            rows = cur.fetchall()
+    return [
+        UserResponse(
+            id=r["id"],
+            username=r["username"],
+            full_name=r["full_name"],
+            department_id=r.get("department_id"),
+            department=r.get("department"),
+            department_is_reception_desk=bool(r.get("department_is_reception_desk")),
+            role=r["role"] or "employee",
+            system=r.get("system") or "transmittal",
+        )
+        for r in rows
+    ]
 
 
 @router.get("", response_model=list[UserResponse])

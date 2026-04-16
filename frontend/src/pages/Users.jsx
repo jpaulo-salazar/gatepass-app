@@ -17,6 +17,7 @@ const TRANSMITTAL_ROLE_OPTIONS = [
   { value: 'approve_only', label: 'Approve only' },
   { value: 'admin', label: 'Admin' },
   { value: 'employee', label: 'Employee' },
+  { value: 'drop_off', label: 'Drop off' },
 ];
 
 export default function Users() {

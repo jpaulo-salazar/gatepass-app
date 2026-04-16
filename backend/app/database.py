@@ -90,6 +90,14 @@ def init_db():
                     FOREIGN KEY (gate_pass_id) REFERENCES gate_passes(id) ON DELETE CASCADE
                 )
             """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS document_series (
+                    kind VARCHAR(32) NOT NULL,
+                    year INT NOT NULL,
+                    last_seq INT NOT NULL DEFAULT 0,
+                    PRIMARY KEY (kind, year)
+                )
+            """)
             from app.routes.auth import hash_password
             # Default admins: one for Gate Pass, one for Transmittal (same users table, system column)
             cur.execute("SELECT COUNT(*) as c FROM users WHERE \x60system\x60 = 'gatepass'")

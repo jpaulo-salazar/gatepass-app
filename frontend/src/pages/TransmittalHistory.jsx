@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import { getTransmittals, getTransmittal } from '../api';
+import { getTransmittals, getTransmittal, clearTransmittalHistory } from '../api';
+import { useAuth } from '../context/AuthContext';
+import { isAdminUser } from '../utils/roles';
 import { formatIsoDateTimeDisplay } from '../utils/dateTime';
 import './GatePassForm.css';
 import './Scan.css';
@@ -26,11 +28,14 @@ function scanEventLabel(eventType) {
 }
 
 export default function TransmittalHistory() {
+  const { user } = useAuth();
+  const showClearHistoryButton = isAdminUser(user);
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [viewT, setViewT] = useState(null);
   const [search, setSearch] = useState('');
+  const [clearing, setClearing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -134,6 +139,28 @@ export default function TransmittalHistory() {
     XLSX.writeFile(wb, `transmittal-history-${dateStr}.xlsx`);
   }
 
+  async function handleClearHistory() {
+    if (
+      !window.confirm(
+        'Delete ALL transmittals (including pending)? This cannot be undone. New transmittals will keep the next number in sequence (they will not restart at 0001 for the year).',
+      )
+    ) {
+      return;
+    }
+    setClearing(true);
+    setError('');
+    try {
+      await clearTransmittalHistory();
+      const data = await getTransmittals();
+      setList(data);
+      setViewT(null);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setClearing(false);
+    }
+  }
+
   const t = viewT;
 
   return (
@@ -163,6 +190,17 @@ export default function TransmittalHistory() {
           >
             Export to Excel
           </button>
+          {showClearHistoryButton && (
+            <button
+              type="button"
+              onClick={handleClearHistory}
+              className="gp-clear-history-btn"
+              disabled={clearing || list.length === 0}
+              title="Remove all transmittals from the database (admin)"
+            >
+              {clearing ? 'Clearing…' : 'Clear history'}
+            </button>
+          )}
         </div>
         <div className="gp-history-wrap">
           <table className="gp-history-table">

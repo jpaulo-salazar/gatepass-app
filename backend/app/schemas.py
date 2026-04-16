@@ -162,7 +162,7 @@ class TransmittalScanEventResponse(BaseModel):
 
 class TransmittalCreate(BaseModel):
     transmittal_date: date
-    recipient_name: str
+    recipient_user_id: int = Field(..., gt=0)
     in_or_out: str = "out"
     purpose_return: bool = False
     purpose_inter_warehouse: bool = False
@@ -184,6 +184,7 @@ class TransmittalResponse(BaseModel):
     transmittal_number: str
     transmittal_date: date
     recipient_name: str
+    recipient_department_id: Optional[int] = None
     in_or_out: Optional[str] = None
     purpose_return: bool
     purpose_inter_warehouse: bool

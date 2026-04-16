@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Header, HTTPException, Depends
 from app.database import get_db
+from app.document_series import KIND_GATE_PASS, allocate_yyyy_nnnn_number
 from app.schemas import GatePassCreate, GatePassResponse, GatePassItemResponse, GatePassStatusUpdate
 from app.routes.users import get_current_user_id, require_system, role_required
 
@@ -124,23 +125,23 @@ def update_gate_pass_status(
     return _row_to_response(gp, items)
 
 
-def _next_gp_number_for_year(cursor, year: int) -> str:
-    """Generate next GP number as year + 4-digit sequence, e.g. 20260001, 20260002."""
-    prefix = str(year)
-    cursor.execute(
-        "SELECT MAX(gp_number) AS max_gp FROM gate_passes WHERE gp_number LIKE %s AND LENGTH(gp_number) = 8",
-        (f"{prefix}%",),
-    )
-    row = cursor.fetchone()
-    max_gp = row.get("max_gp") if row else None
-    if max_gp and max_gp.startswith(prefix):
-        try:
-            seq = int(max_gp[4:], 10) + 1
-        except ValueError:
-            seq = 1
-    else:
-        seq = 1
-    return f"{prefix}{seq:04d}"
+@router.post("/clear-history")
+def clear_gate_pass_history(
+    authorization: str = Header(None, alias="Authorization"),
+    _=Depends(require_system("gatepass")),
+    __=Depends(role_required("admin")),
+):
+    """Remove all gate passes and line items. Document numbers (YYYYNNNN) continue from the stored counter."""
+    get_current_user_id(authorization)
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) AS c FROM gate_passes")
+            n = int(cur.fetchone()["c"])
+            cur.execute("DELETE FROM gate_passes")
+    return {
+        "deleted": n,
+        "message": "All gate passes removed. New passes will use the next sequence number (not reset to 0001).",
+    }
 
 
 @router.post("", response_model=GatePassResponse)
@@ -154,7 +155,7 @@ def create_gate_pass(
     with get_db() as conn:
         with conn.cursor() as cur:
             year = body.pass_date.year if hasattr(body.pass_date, "year") else int(str(body.pass_date)[:4])
-            gp_number = _next_gp_number_for_year(cur, year)
+            gp_number = allocate_yyyy_nnnn_number(cur, KIND_GATE_PASS, year)
             in_out = (body.in_or_out or "out").strip().lower()[:10]
             if in_out not in ("in", "out"):
                 in_out = "out"
