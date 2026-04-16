@@ -84,21 +84,19 @@ export function isPathAllowedForRole(role, normalizedPath, user, userSystem = nu
     }
     return normalizedPath === '/gatepass/approval';
   }
+  /** Reception desk department: Recipient Scan hidden — staff use Receptionist Scan (and optional Drop off) only. */
+  if (isReceptionDeskUser(user) && normalizedPath === '/transmittal/recipient') {
+    return false;
+  }
   if (r === 'employee') {
     if ((userSystem || user?.system || SECTION_GATEPASS) !== SECTION_TRANSMITTAL) return false;
     if (isReceptionDeskUser(user)) {
-      return (
-        normalizedPath === '/transmittal/receptionist' ||
-        normalizedPath === '/transmittal/recipient'
-      );
+      return normalizedPath === '/transmittal/receptionist';
     }
     return normalizedPath === '/transmittal/recipient';
   }
-  /** Reception desk department: both Receptionist Scan and Recipient Scan. */
-  if (
-    isReceptionDeskUser(user) &&
-    (normalizedPath === '/transmittal/receptionist' || normalizedPath === '/transmittal/recipient')
-  ) {
+  /** Reception desk: allow Receptionist Scan for scan-only and other roles that are not handled above. */
+  if (isReceptionDeskUser(user) && normalizedPath === '/transmittal/receptionist') {
     return true;
   }
   if (r === 'encoding') {
@@ -135,7 +133,7 @@ export function getDefaultPath(role, section = SECTION_GATEPASS, user = null) {
     return '/transmittal/dropoff';
   }
   if (role === 'employee') {
-    return '/transmittal/recipient';
+    return isReceptionDeskUser(user) ? '/transmittal/receptionist' : '/transmittal/recipient';
   }
   if (role === 'scan_only') {
     if (section === SECTION_TRANSMITTAL) {
