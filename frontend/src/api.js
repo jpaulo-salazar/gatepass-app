@@ -177,6 +177,12 @@ export async function recordTransmittalOutBarcodeScan(id, { phase, recipient_dep
     headers: getAuthHeader(),
   });
 }
+export async function recordTransmittalDropOffScan(id) {
+  return api(`/transmittals/${id}/drop-off-scan`, {
+    method: 'POST',
+    headers: getAuthHeader(),
+  });
+}
 // Backward-compatible alias
 export async function recordTransmittalInBarcodeScan(id, phaseOrPayload) {
   if (phaseOrPayload && typeof phaseOrPayload === 'object') {

@@ -17,6 +17,7 @@ function purposeSummary(t) {
 
 function scanEventLabel(eventType) {
   const labels = {
+    drop_off_scan: 'Drop off recorded (optional)',
     receptionist_out_scan: 'Receptionist scan (received)',
     recipient_out_scan: 'Recipient scan (received)',
     receptionist_barcode_scanned: 'Receptionist scanned barcode',

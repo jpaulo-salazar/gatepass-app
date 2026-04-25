@@ -22,6 +22,7 @@ EVENT_RECIPIENT_BARCODE = "recipient_barcode_scanned"
 EVENT_RECIPIENT_RECEIVED = "recipient_marked_received"
 EVENT_RECEPTIONIST_OUT_SCAN = "receptionist_out_scan"
 EVENT_RECIPIENT_OUT_SCAN = "recipient_out_scan"
+EVENT_DROP_OFF_SCAN = "drop_off_scan"
 
 
 def _out_ok_for_scan(row) -> bool:
@@ -260,7 +261,7 @@ def record_out_barcode_scan(
                     detail="Only approved OUT transmittals can be scanned for receipt.",
                 )
             if phase == "receptionist":
-                if jwt_role in ("encoding", "admin", "drop_off"):
+                if jwt_role in ("encoding", "admin"):
                     pass
                 elif jwt_role in ("scan_only", "employee"):
                     cur.execute(
@@ -279,7 +280,7 @@ def record_out_barcode_scan(
                 else:
                     raise HTTPException(
                         status_code=403,
-                        detail="Only encoding, admin, drop off, or reception-desk scan/employee users can complete the receptionist step.",
+                        detail="Only encoding, admin, or reception-desk scan/employee users can complete the receptionist step.",
                     )
                 if row.get("received_by_receptionist_at"):
                     raise HTTPException(
@@ -392,6 +393,43 @@ def record_in_barcode_scan_compat(
 ):
     """Backward compatibility alias: old path now routes to OUT scan flow."""
     return record_out_barcode_scan(transmittal_id, body, authorization, _)
+
+
+@router.post("/{transmittal_id}/drop-off-scan", response_model=TransmittalResponse)
+def record_drop_off_scan(
+    transmittal_id: int,
+    authorization: str = Header(None, alias="Authorization"),
+    _=Depends(require_system("transmittal")),
+    __=Depends(role_required("encoding", "admin", "drop_off")),
+):
+    """Optional drop-off marker before the required receptionist step."""
+    user_id, fn = _auth_user_row(authorization)
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM transmittals WHERE id = %s", (transmittal_id,))
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Transmittal not found")
+            if not _out_ok_for_scan(row):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Only approved OUT transmittals can be marked as drop off.",
+                )
+            if row.get("received_by_receptionist_at"):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Receptionist step is already done; drop off is no longer needed.",
+                )
+            cur.execute(
+                """SELECT id FROM transmittal_scan_events
+                   WHERE transmittal_id = %s AND event_type = %s
+                   ORDER BY id DESC LIMIT 1""",
+                (transmittal_id, EVENT_DROP_OFF_SCAN),
+            )
+            if cur.fetchone():
+                raise HTTPException(status_code=400, detail="Drop off has already been recorded for this transmittal.")
+            _insert_scan_event(cur, transmittal_id, EVENT_DROP_OFF_SCAN, user_id, fn)
+            return _response_from_id(cur, transmittal_id, True)
 
 
 @router.patch("/{transmittal_id}/status", response_model=TransmittalResponse)

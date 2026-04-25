@@ -7,9 +7,9 @@ import TransmittalOutScanPage from './TransmittalOutScanPage';
 export default function TransmittalDropOff() {
   return (
     <TransmittalOutScanPage
-      phase="receptionist"
+      phase="drop_off"
       pageTitle="Drop off (optional)"
-      pageDescription="Optional: record desk intake here if your site uses a Drop off account. The main reception flow is still Receptionist Scan — this does not replace it. Look up an approved OUT transmittal and confirm handoff; if the recipient was set on the transmittal form, only confirm intake."
+      pageDescription="Optional: record a drop-off marker if your site uses a Drop off account. This does not complete receptionist receipt — Receptionist Scan is still the required final step before recipient scan."
     />
   );
 }

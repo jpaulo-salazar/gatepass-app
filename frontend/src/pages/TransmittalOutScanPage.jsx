@@ -1,6 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { getTransmittalByNumber, recordTransmittalOutBarcodeScan, getUsers, getDepartments } from '../api';
+import {
+  getTransmittalByNumber,
+  recordTransmittalOutBarcodeScan,
+  recordTransmittalDropOffScan,
+  getUsers,
+  getDepartments,
+} from '../api';
 import { useAuth } from '../context/AuthContext';
 import { formatIsoDateTimeDisplay } from '../utils/dateTime';
 import './Scan.css';
@@ -8,6 +14,8 @@ import './Scan.css';
 export default function TransmittalOutScanPage({ phase = 'receptionist', pageTitle, pageDescription }) {
   const { user: authUser } = useAuth();
   const isReceptionist = phase === 'receptionist';
+  const isDropOff = phase === 'drop_off';
+  const isDeskIntake = isReceptionist || isDropOff;
   const [manualNum, setManualNum] = useState('');
   const [transmittal, setTransmittal] = useState(null);
   const [error, setError] = useState('');
@@ -48,6 +56,10 @@ export default function TransmittalOutScanPage({ phase = 'receptionist', pageTit
     if (!t) return false;
     if ((t.in_or_out || 'out').toLowerCase() !== 'out') return false;
     return (t.status || 'pending').toLowerCase() === 'approved';
+  }
+
+  function hasDropOffRecorded(t) {
+    return (t?.scan_events || []).some((ev) => ev.event_type === 'drop_off_scan');
   }
 
   /** Recipient step: only the assigned user may record (backend enforces this too). Legacy rows with no recipient_user_id allow any user. */
@@ -102,13 +114,18 @@ export default function TransmittalOutScanPage({ phase = 'receptionist', pageTit
     setSubmitting(true);
     setError('');
     try {
-      const payload = { phase };
-      if (isReceptionist && !preAssignedRecipient) {
-        payload.recipient_department_id = Number(recipientDepartmentId);
-        payload.recipient_user_id = Number(recipientUserId);
+      if (isDropOff) {
+        const next = await recordTransmittalDropOffScan(target.id);
+        setTransmittal(next);
+      } else {
+        const payload = { phase };
+        if (isReceptionist && !preAssignedRecipient) {
+          payload.recipient_department_id = Number(recipientDepartmentId);
+          payload.recipient_user_id = Number(recipientUserId);
+        }
+        const next = await recordTransmittalOutBarcodeScan(target.id, payload);
+        setTransmittal(next);
       }
-      const next = await recordTransmittalOutBarcodeScan(target.id, payload);
-      setTransmittal(next);
     } catch (e) {
       setError(e.message || 'Could not record scan');
     } finally {
@@ -154,15 +171,15 @@ export default function TransmittalOutScanPage({ phase = 'receptionist', pageTit
     <div className="scan-page">
       <h1>
         {pageTitle ||
-          (isReceptionist ? 'Transmittal Receptionist Scan' : 'Transmittal Recipient Scan')}
+          (isDeskIntake ? 'Transmittal Receptionist Scan' : 'Transmittal Recipient Scan')}
       </h1>
       <p className="scan-desc">
         {pageDescription ||
-          (isReceptionist
+          (isDeskIntake
             ? 'Look up an approved OUT transmittal (barcode on the printed form or type the number). If the recipient was set on the transmittal form, confirm desk intake only; otherwise choose department and user, then record receptionist receipt.'
             : 'Look up an approved OUT transmittal assigned to you, then record recipient receipt. Your upcoming list is shown above.')}
       </p>
-      {isReceptionist && (
+      {isDeskIntake && (
         <p className="gp-scan-hint">
           <strong>Note:</strong> Printing the gate <strong>release tag</strong> from Scan Barcode is optional. Reception can record intake as long as the transmittal is <strong>admin-approved</strong> — a release tag is not required.
         </p>
@@ -211,7 +228,7 @@ export default function TransmittalOutScanPage({ phase = 'receptionist', pageTit
             <p><strong>Recipient Received:</strong> {formatIsoDateTimeDisplay(transmittal.received_by_recipient_at)}</p>
           </div>
 
-          {isReceptionist && !isApprovedOutTransmittal(transmittal) && (
+          {isDeskIntake && !isApprovedOutTransmittal(transmittal) && (
             <p className="gp-scan-pending-msg">
               {(transmittal.status || 'pending').toLowerCase() === 'rejected'
                 ? 'This transmittal was rejected. It cannot be processed at reception.'
@@ -219,10 +236,29 @@ export default function TransmittalOutScanPage({ phase = 'receptionist', pageTit
             </p>
           )}
 
-          {isReceptionist && isApprovedOutTransmittal(transmittal) && transmittal.received_by_receptionist_at && (
+          {isDeskIntake && isApprovedOutTransmittal(transmittal) && transmittal.received_by_receptionist_at && (
             <p className="gp-scan-pending-msg">
               Receptionist receipt is already recorded. The assigned recipient should use Recipient Scan to complete receipt.
             </p>
+          )}
+
+          {isDropOff && isApprovedOutTransmittal(transmittal) && !transmittal.received_by_receptionist_at && (
+            <div className="gp-actions" style={{ display: 'grid', gap: '8px', maxWidth: 560 }}>
+              {hasDropOffRecorded(transmittal) ? (
+                <p className="gp-scan-hint">
+                  Drop off is already recorded. Receptionist should now record the required final receptionist receipt step.
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  className="btn-primary"
+                  disabled={submitting}
+                  onClick={() => submitStep(transmittal)}
+                >
+                  {submitting ? 'Saving…' : 'Record drop off (optional)'}
+                </button>
+              )}
+            </div>
           )}
 
           {isReceptionist && isApprovedOutTransmittal(transmittal) && !transmittal.received_by_receptionist_at && (
