@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { createTransmittal, getTransmittalEmployeeRecipients } from '../api';
+import { useNavigate, useParams } from 'react-router-dom';
+import {
+  createTransmittal,
+  getTransmittal,
+  getTransmittalEmployeeRecipients,
+  updateTransmittal,
+} from '../api';
 import { useAuth } from '../context/AuthContext';
 import {
   MAX_LINE_ITEMS,
@@ -16,10 +21,16 @@ const emptyItem = () => ({ item_description: '', qty: 0, ref_doc_no: '', destina
 export default function TransmittalForm() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { id: editId } = useParams();
+  const isEditMode = Boolean(editId);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [createdTransmittal, setCreatedTransmittal] = useState(null);
+  const [updatedTransmittal, setUpdatedTransmittal] = useState(null);
   const [importInfo, setImportInfo] = useState('');
+  const [loadingExisting, setLoadingExisting] = useState(isEditMode);
+  const [originalNumber, setOriginalNumber] = useState('');
+  const [editWarning, setEditWarning] = useState('');
   const excelInputRef = useRef(null);
   const [employees, setEmployees] = useState([]);
   const [loadingEmployees, setLoadingEmployees] = useState(true);
@@ -42,10 +53,63 @@ export default function TransmittalForm() {
   });
 
   useEffect(() => {
-    if (user?.full_name && !form.prepared_by) {
+    if (!isEditMode && user?.full_name && !form.prepared_by) {
       setForm((f) => ({ ...f, prepared_by: user.full_name }));
     }
-  }, [user]);
+  }, [user, isEditMode]);
+
+  useEffect(() => {
+    if (!isEditMode) return;
+    let cancelled = false;
+    (async () => {
+      setLoadingExisting(true);
+      setError('');
+      try {
+        const t = await getTransmittal(editId);
+        if (cancelled) return;
+        if (t.received_by_recipient_at) {
+          setError('This transmittal cannot be edited: the recipient has already received it.');
+        } else if (t.received_by_receptionist_at) {
+          setEditWarning(
+            'Heads up: the receptionist has already received the previous version. Saving will reset their intake so they can re-confirm the new approved version.',
+          );
+        }
+        setOriginalNumber(t.transmittal_number || '');
+        setForm({
+          transmittal_date: (t.transmittal_date || today()).toString().slice(0, 10),
+          recipient_user_id: t.recipient_user_id ? String(t.recipient_user_id) : '',
+          purpose_return: !!t.purpose_return,
+          purpose_inter_warehouse: !!t.purpose_inter_warehouse,
+          purpose_others: !!t.purpose_others,
+          vehicle_type: t.vehicle_type || '',
+          plate_no: t.plate_no || '',
+          truck_seal_no: t.truck_seal_no || '',
+          prepared_by: t.prepared_by || '',
+          checked_by: t.checked_by || '',
+          recommended_by: t.recommended_by || '',
+          approved_by: t.approved_by || '',
+          time_out: t.time_out || '',
+          time_in: t.time_in || '',
+          items:
+            (t.items && t.items.length > 0
+              ? t.items.map((it) => ({
+                  item_description: it.item_description || '',
+                  qty: it.qty ?? 0,
+                  ref_doc_no: it.ref_doc_no || '',
+                  destination: it.destination || '',
+                }))
+              : [emptyItem()]),
+        });
+      } catch (e) {
+        if (!cancelled) setError(e.message || 'Could not load transmittal for editing.');
+      } finally {
+        if (!cancelled) setLoadingExisting(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [editId, isEditMode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -66,10 +130,10 @@ export default function TransmittalForm() {
   }, []);
 
   useEffect(() => {
-    if (createdTransmittal) {
+    if (createdTransmittal || updatedTransmittal) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
-  }, [createdTransmittal]);
+  }, [createdTransmittal, updatedTransmittal]);
 
   function addItem() {
     setForm((f) => ({ ...f, items: [...f.items, emptyItem()] }));
@@ -132,6 +196,7 @@ export default function TransmittalForm() {
     setError('');
     setImportInfo('');
     setCreatedTransmittal(null);
+    setUpdatedTransmittal(null);
     if (!form.recipient_user_id) {
       setError('Select a recipient employee (User Encoding → role Employee).');
       return;
@@ -141,7 +206,6 @@ export default function TransmittalForm() {
       const payload = {
         transmittal_date: form.transmittal_date,
         recipient_user_id: Number(form.recipient_user_id),
-        in_or_out: 'out',
         purpose_return: form.purpose_return,
         purpose_inter_warehouse: form.purpose_inter_warehouse,
         purpose_others: form.purpose_others,
@@ -167,11 +231,20 @@ export default function TransmittalForm() {
         setError('Add at least one item with description.');
         return;
       }
-      const result = await createTransmittal(payload);
-      setCreatedTransmittal(result);
-      setForm({ ...form, items: [emptyItem()] });
+      if (isEditMode) {
+        const result = await updateTransmittal(editId, payload);
+        setUpdatedTransmittal(result);
+      } else {
+        const createPayload = { ...payload, in_or_out: 'out' };
+        const result = await createTransmittal(createPayload);
+        setCreatedTransmittal(result);
+        setForm({ ...form, items: [emptyItem()] });
+      }
     } catch (e) {
-      setError(e.message || 'Failed to create document transmittal');
+      setError(
+        e.message ||
+          (isEditMode ? 'Failed to update document transmittal' : 'Failed to create document transmittal'),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -188,11 +261,24 @@ export default function TransmittalForm() {
     });
   }
 
+  if (loadingExisting) {
+    return <div className="encoding-loading">Loading transmittal for editing…</div>;
+  }
+
   return (
     <div className="gatepass-form-page encoding-page">
-      <h1>Document Transmittal Form</h1>
-      <p className="form-subtitle">CHERENZ GLOBAL MFG. INC. — DOCUMENT TRANSMITTAL SYSTEM</p>
+      <h1>{isEditMode ? `Edit Transmittal${originalNumber ? ` — #${originalNumber}` : ''}` : 'Document Transmittal Form'}</h1>
+      <p className="form-subtitle">
+        {isEditMode
+          ? 'Editing a transmittal returns it to PENDING for a fresh admin approval cycle.'
+          : 'CHERENZ GLOBAL MFG. INC. — DOCUMENT TRANSMITTAL SYSTEM'}
+      </p>
       {error && <div className="gp-error">{error}</div>}
+      {isEditMode && editWarning && !error && (
+        <div className="gp-import-info" role="status">
+          {editWarning}
+        </div>
+      )}
       {createdTransmittal && (
         <div className="gp-success-msg">
           <strong>Transmittal created:</strong> #{createdTransmittal.transmittal_number}
@@ -210,6 +296,31 @@ export default function TransmittalForm() {
             </button>
             <button type="button" onClick={createAnother} className="btn-secondary">
               Create another
+            </button>
+          </div>
+        </div>
+      )}
+      {updatedTransmittal && (
+        <div className="gp-success-msg">
+          <strong>Transmittal updated:</strong> #{updatedTransmittal.transmittal_number} — status reset to <em>pending</em> for re-approval.
+          <div className="gp-success-buttons">
+            <button
+              type="button"
+              onClick={() => navigate('/transmittal/history')}
+              className="btn-primary"
+            >
+              Back to History
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                navigate('/transmittal/print', {
+                  state: { transmittal: updatedTransmittal, variant: 'form' },
+                })
+              }
+              className="btn-secondary"
+            >
+              Print form (with barcode)
             </button>
           </div>
         </div>
@@ -454,8 +565,23 @@ export default function TransmittalForm() {
         </section>
 
         <button type="submit" className="gp-submit-btn" disabled={submitting}>
-          {submitting ? 'Saving…' : 'Create Transmittal & Generate Barcode'}
+          {submitting
+            ? 'Saving…'
+            : isEditMode
+              ? 'Save changes (resets status to pending)'
+              : 'Create Transmittal & Generate Barcode'}
         </button>
+        {isEditMode && (
+          <button
+            type="button"
+            className="btn-secondary"
+            style={{ marginLeft: '0.75rem' }}
+            onClick={() => navigate('/transmittal/history')}
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+        )}
       </form>
     </div>
   );

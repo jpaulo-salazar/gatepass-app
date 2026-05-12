@@ -1,11 +1,21 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getTransmittals, updateTransmittalStatus } from '../api';
 import { useAuth } from '../context/AuthContext';
 import './GatePassForm.css';
 import './Scan.css';
 
+function canEditTransmittal(user, t) {
+  if (!user || !t) return false;
+  const role = String(user.role || '').toLowerCase();
+  if (role !== 'admin' && role !== 'encoding') return false;
+  if (t.received_by_recipient_at) return false;
+  return true;
+}
+
 export default function TransmittalApproval() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -206,6 +216,17 @@ export default function TransmittalApproval() {
                   <>
                     <button type="button" onClick={handleApprove} className="btn-primary" disabled={statusLoading}>Approve</button>
                     <button type="button" onClick={handleReject} className="btn-reject" disabled={statusLoading}>Reject</button>
+                    {canEditTransmittal(user, t) && (
+                      <button
+                        type="button"
+                        className="gp-btn-edit gp-btn-edit-lg"
+                        onClick={() => navigate(`/transmittal/edit/${t.id}`)}
+                        disabled={statusLoading}
+                        title="Edit transmittal (will keep status as pending)"
+                      >
+                        Edit
+                      </button>
+                    )}
                   </>
                 ) : (
                   <div className="reject-remarks-wrap">

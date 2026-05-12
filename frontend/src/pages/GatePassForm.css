@@ -480,6 +480,55 @@
   color: #1e40af;
 }
 
+/* Row actions: keep View + Edit nicely spaced and aligned */
+.gp-row-actions {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Edit button (table row + view modal). Subtle amber to distinguish from View. */
+.gp-btn-edit {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.8rem;
+  background: #fff;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  line-height: 1.1;
+}
+
+.gp-btn-edit::before {
+  content: '\270E';
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.gp-btn-edit:hover:not(:disabled) {
+  background: #fffbeb;
+  border-color: #f59e0b;
+  color: #78350f;
+  box-shadow: 0 1px 2px rgba(245, 158, 11, 0.18);
+}
+
+.gp-btn-edit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Larger variant used in modal headers / approval action bar */
+.gp-btn-edit.gp-btn-edit-lg {
+  padding: 0.5rem 0.95rem;
+  font-size: 0.9rem;
+}
+
 /* View modal (Gate Pass History) */
 .gp-modal-overlay {
   position: fixed;
@@ -548,5 +597,243 @@
 @media (max-width: 640px) {
   .gp-row-2, .gp-row-3 {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ===== Product picker (item selection modal) ===== */
+.product-picker-modal {
+  max-width: 760px;
+  height: min(82vh, 720px);
+  display: flex;
+  flex-direction: column;
+}
+
+.product-picker-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 1rem 1.25rem 0;
+  gap: 0.75rem;
+}
+
+.product-picker-search-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.product-picker-search {
+  width: 100%;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.product-picker-search:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.product-picker-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.product-picker-clear {
+  background: none;
+  border: none;
+  color: #b91c1c;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.product-picker-clear:hover {
+  background: #fef2f2;
+}
+
+.product-picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.product-picker-item {
+  display: grid;
+  grid-template-columns: minmax(140px, 200px) 1fr auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.55rem 0.85rem;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: #1f2937;
+}
+
+.product-picker-item:last-child {
+  border-bottom: none;
+}
+
+.product-picker-item.is-active {
+  background: #eff6ff;
+}
+
+.product-picker-item.is-selected {
+  background: #ecfdf5;
+}
+
+.product-picker-item.is-used {
+  cursor: not-allowed;
+  background: #f9fafb;
+  color: #9ca3af;
+}
+
+.product-picker-item.is-used .product-picker-code {
+  color: #9ca3af;
+}
+
+.product-picker-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 600;
+  color: #1a365d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.product-picker-desc {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.product-picker-tags {
+  display: inline-flex;
+  gap: 0.35rem;
+}
+
+.product-picker-tag {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.product-picker-tag.is-used-tag {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.product-picker-tag.is-selected-tag {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.product-picker-empty {
+  padding: 1.5rem;
+  text-align: center;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.product-picker-more {
+  display: flex;
+  justify-content: center;
+  padding: 0.5rem 0;
+}
+
+.product-picker-more-hint {
+  margin-left: 0.4rem;
+  color: #6b7280;
+  font-weight: 400;
+}
+
+.product-picker-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1.25rem;
+  border-top: 1px solid #e5e7eb;
+  gap: 0.75rem;
+  background: #f9fafb;
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+
+.product-picker-hint {
+  font-size: 0.78rem;
+  color: #6b7280;
+}
+
+/* Trigger button used inside the items table */
+.gp-item-picker-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  width: 100%;
+  min-width: 140px;
+  padding: 0.4rem 0.6rem;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #1f2937;
+  text-align: left;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.gp-item-picker-btn:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.gp-item-picker-btn .gp-item-picker-label {
+  flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 600;
+  color: #1a365d;
+}
+
+.gp-item-picker-btn.is-empty .gp-item-picker-label {
+  font-family: inherit;
+  font-weight: 400;
+  color: #6b7280;
+}
+
+.gp-item-picker-btn .gp-item-picker-caret {
+  color: #9ca3af;
+  font-size: 0.8rem;
+}
+
+@media (max-width: 640px) {
+  .product-picker-item {
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
+  }
+  .product-picker-tags {
+    justify-self: start;
   }
 }

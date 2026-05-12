@@ -193,6 +193,9 @@ export async function recordTransmittalInBarcodeScan(id, phaseOrPayload) {
 export async function createTransmittal(data) {
   return api('/transmittals', { method: 'POST', body: JSON.stringify(data), headers: getAuthHeader() });
 }
+export async function updateTransmittal(id, data) {
+  return api(`/transmittals/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: getAuthHeader() });
+}
 export async function updateTransmittalStatus(id, { status, rejected_remarks, approved_by }) {
   return api(`/transmittals/${id}/status`, {
     method: 'PATCH',

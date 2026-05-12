@@ -179,6 +179,25 @@ class TransmittalCreate(BaseModel):
     items: List[TransmittalItemCreate]
 
 
+class TransmittalUpdate(BaseModel):
+    """Edit an existing transmittal. Status resets to 'pending' on save."""
+    transmittal_date: date
+    recipient_user_id: int = Field(..., gt=0)
+    purpose_return: bool = False
+    purpose_inter_warehouse: bool = False
+    purpose_others: bool = False
+    vehicle_type: Optional[str] = None
+    plate_no: Optional[str] = None
+    truck_seal_no: Optional[str] = None
+    prepared_by: Optional[str] = None
+    checked_by: Optional[str] = None
+    recommended_by: Optional[str] = None
+    approved_by: Optional[str] = None
+    time_out: Optional[str] = None
+    time_in: Optional[str] = None
+    items: List[TransmittalItemCreate]
+
+
 class TransmittalResponse(BaseModel):
     id: int
     transmittal_number: str

@@ -40,6 +40,7 @@ function App() {
         <Route path="gatepass/print" element={<GatePassPrintPage />} />
         <Route path="gatepass/scan" element={<Scan />} />
         <Route path="transmittal" element={<TransmittalForm />} />
+        <Route path="transmittal/edit/:id" element={<TransmittalForm />} />
         <Route path="transmittal/departments" element={<Departments />} />
         <Route path="transmittal/approval" element={<TransmittalApproval />} />
         <Route path="transmittal/history" element={<TransmittalHistory />} />

@@ -4,6 +4,7 @@ from app.database import get_db
 from app.document_series import KIND_TRANSMITTAL, allocate_yyyy_nnnn_number
 from app.schemas import (
     TransmittalCreate,
+    TransmittalUpdate,
     TransmittalResponse,
     TransmittalItemResponse,
     TransmittalStatusUpdate,
@@ -642,3 +643,104 @@ def create_transmittal(
             cur.execute("SELECT * FROM transmittal_items WHERE transmittal_id = %s ORDER BY id", (transmittal_id,))
             items = cur.fetchall()
     return _row_to_response(row, items)
+
+
+@router.put("/{transmittal_id}", response_model=TransmittalResponse)
+def update_transmittal(
+    transmittal_id: int,
+    body: TransmittalUpdate,
+    authorization: str = Header(None, alias="Authorization"),
+    _=Depends(require_system("transmittal")),
+    __=Depends(role_required("encoding", "admin")),
+):
+    """Edit an existing transmittal. Resets status to 'pending' so it goes
+    back through the admin approval cycle. Editing is only blocked once the
+    recipient has confirmed receipt (the handover is complete). If the
+    receptionist already received the prior version, that intake is cleared
+    so the receptionist re-confirms the new approved version.
+    """
+    get_current_user_id(authorization)
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM transmittals WHERE id = %s", (transmittal_id,))
+            existing = cur.fetchone()
+            if not existing:
+                raise HTTPException(status_code=404, detail="Transmittal not found")
+            if existing.get("received_by_recipient_at"):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Cannot edit: recipient has already received this transmittal.",
+                )
+            cur.execute(
+                """SELECT u.id, u.username, u.full_name, u.department_id, d.name AS dept_name
+                   FROM users u
+                   LEFT JOIN departments d ON u.department_id = d.id
+                   WHERE u.id = %s AND u.`system` = 'transmittal' AND u.role = 'employee'""",
+                (body.recipient_user_id,),
+            )
+            ru = cur.fetchone()
+            if not ru:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Recipient must be a Transmittal user with role Employee (User Encoding).",
+                )
+            disp = (ru.get("full_name") or "").strip() or (ru.get("username") or "").strip() or str(ru["id"])
+            ru_name = (ru.get("full_name") or "").strip() or None
+            ru_dept_id = ru.get("department_id")
+            ru_dept_name = (ru.get("dept_name") or "").strip() or None
+            cur.execute(
+                """UPDATE transmittals SET
+                       transmittal_date = %s,
+                       recipient_name = %s,
+                       recipient_department_id = %s,
+                       recipient_department = %s,
+                       recipient_user_id = %s,
+                       recipient_user_name = %s,
+                       purpose_return = %s,
+                       purpose_inter_warehouse = %s,
+                       purpose_others = %s,
+                       vehicle_type = %s,
+                       plate_no = %s,
+                       truck_seal_no = %s,
+                       prepared_by = %s,
+                       checked_by = %s,
+                       recommended_by = %s,
+                       approved_by = %s,
+                       time_out = %s,
+                       time_in = %s,
+                       status = 'pending',
+                       date_approved = NULL,
+                       rejected_remarks = NULL,
+                       received_by_receptionist_at = NULL,
+                       received_by_receptionist_name = NULL
+                   WHERE id = %s""",
+                (
+                    body.transmittal_date,
+                    disp,
+                    ru_dept_id,
+                    ru_dept_name,
+                    body.recipient_user_id,
+                    ru_name,
+                    int(body.purpose_return),
+                    int(body.purpose_inter_warehouse),
+                    int(body.purpose_others),
+                    body.vehicle_type,
+                    body.plate_no,
+                    body.truck_seal_no,
+                    body.prepared_by,
+                    body.checked_by,
+                    body.recommended_by,
+                    body.approved_by,
+                    body.time_out,
+                    body.time_in,
+                    transmittal_id,
+                ),
+            )
+            cur.execute("DELETE FROM transmittal_items WHERE transmittal_id = %s", (transmittal_id,))
+            for it in body.items:
+                cur.execute(
+                    """INSERT INTO transmittal_items (transmittal_id, item_description, qty, ref_doc_no, destination)
+                       VALUES (%s, %s, %s, %s, %s)""",
+                    (transmittal_id, it.item_description, it.qty, it.ref_doc_no, it.destination),
+                )
+            return _response_from_id(cur, transmittal_id, True)

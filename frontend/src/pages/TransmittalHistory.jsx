@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { getTransmittals, getTransmittal, clearTransmittalHistory } from '../api';
 import { useAuth } from '../context/AuthContext';
@@ -28,8 +29,18 @@ function scanEventLabel(eventType) {
   return labels[eventType] || eventType;
 }
 
+function canEditTransmittal(user, t) {
+  if (!user || !t) return false;
+  const role = String(user.role || '').toLowerCase();
+  if (role !== 'admin' && role !== 'encoding') return false;
+  if ((t.in_or_out || 'out').toLowerCase() !== 'out') return false;
+  if (t.received_by_recipient_at) return false;
+  return true;
+}
+
 export default function TransmittalHistory() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const showClearHistoryButton = isAdminUser(user);
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -235,21 +246,33 @@ export default function TransmittalHistory() {
                     <td><span className={`gp-status gp-status-${(item.status || 'pending').toLowerCase()}`}>{item.status || 'pending'}</span></td>
                     <td>{item.rejected_remarks || '—'}</td>
                     <td>
-                      <button
-                        type="button"
-                        className="gp-btn-view"
-                        onClick={async () => {
-                          setError('');
-                          try {
-                            const full = await getTransmittal(item.id);
-                            setViewT(full);
-                          } catch (e) {
-                            setError(e.message || 'Could not load detail');
-                          }
-                        }}
-                      >
-                        View
-                      </button>
+                      <div className="gp-row-actions">
+                        <button
+                          type="button"
+                          className="gp-btn-view"
+                          onClick={async () => {
+                            setError('');
+                            try {
+                              const full = await getTransmittal(item.id);
+                              setViewT(full);
+                            } catch (e) {
+                              setError(e.message || 'Could not load detail');
+                            }
+                          }}
+                        >
+                          View
+                        </button>
+                        {canEditTransmittal(user, item) && (
+                          <button
+                            type="button"
+                            className="gp-btn-edit"
+                            onClick={() => navigate(`/transmittal/edit/${item.id}`)}
+                            title="Edit transmittal (resets status to pending)"
+                          >
+                            Edit
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -264,9 +287,21 @@ export default function TransmittalHistory() {
           <div className="gp-modal" onClick={(e) => e.stopPropagation()}>
             <div className="gp-modal-header">
               <h2>Transmittal: {t.transmittal_number}</h2>
-              <button type="button" className="gp-modal-close" onClick={() => setViewT(null)} aria-label="Close">
-                ×
-              </button>
+              <div className="gp-row-actions">
+                {canEditTransmittal(user, t) && (
+                  <button
+                    type="button"
+                    className="gp-btn-edit gp-btn-edit-lg"
+                    onClick={() => navigate(`/transmittal/edit/${t.id}`)}
+                    title="Edit transmittal (resets status to pending)"
+                  >
+                    Edit
+                  </button>
+                )}
+                <button type="button" className="gp-modal-close" onClick={() => setViewT(null)} aria-label="Close">
+                  ×
+                </button>
+              </div>
             </div>
             <div className="gatepass-display gp-modal-body">
               <div className="gp-info">

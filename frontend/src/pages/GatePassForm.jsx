@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getProducts, createGatePass } from '../api';
 import { useAuth } from '../context/AuthContext';
+import ProductPickerModal from '../components/ProductPickerModal';
 import {
   MAX_LINE_ITEMS,
   parseGatePassLineItemsExcel,
@@ -24,6 +25,7 @@ export default function GatePassForm() {
   const [error, setError] = useState('');
   const [createdGp, setCreatedGp] = useState(null);
   const [importInfo, setImportInfo] = useState('');
+  const [pickerRowIndex, setPickerRowIndex] = useState(null);
   const excelInputRef = useRef(null);
   const [form, setForm] = useState({
     pass_date: today(),
@@ -91,8 +93,27 @@ export default function GatePassForm() {
   }
 
   function setItemFromProduct(index, product) {
-    updateItem(index, 'item_code', product.item_code || '');
-    updateItem(index, 'item_description', product.item_description || '');
+    setForm((f) => ({
+      ...f,
+      items: f.items.map((it, i) =>
+        i === index
+          ? {
+              ...it,
+              item_code: product.item_code || '',
+              item_description: product.item_description || it.item_description || '',
+            }
+          : it,
+      ),
+    }));
+  }
+
+  function clearItemProduct(index) {
+    setForm((f) => ({
+      ...f,
+      items: f.items.map((it, i) =>
+        i === index ? { ...it, item_code: '', item_description: '' } : it,
+      ),
+    }));
   }
 
   function handleExcelImport(e) {
@@ -353,32 +374,17 @@ export default function GatePassForm() {
                 {form.items.map((it, i) => (
                   <tr key={i}>
                     <td>
-                      <select
-                        value={it.item_code || ''}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          if (val) {
-                            const used = usedItemCodesExcludingRow(i);
-                            if (used.has(val)) return;
-                            const p = products.find((x) => x.item_code === val);
-                            if (p) setItemFromProduct(i, p);
-                            else updateItem(i, 'item_code', val);
-                          } else {
-                            updateItem(i, 'item_code', '');
-                            updateItem(i, 'item_description', '');
-                          }
-                        }}
+                      <button
+                        type="button"
+                        className={`gp-item-picker-btn${it.item_code ? '' : ' is-empty'}`}
+                        onClick={() => setPickerRowIndex(i)}
+                        title={it.item_code ? `Selected: ${it.item_code}` : 'Search and select an item'}
                       >
-                        <option value="">—</option>
-                        {products.map((p) => {
-                          const alreadyUsed = usedItemCodesExcludingRow(i).has(p.item_code);
-                          return (
-                            <option key={p.id} value={p.item_code} disabled={alreadyUsed}>
-                              {p.item_code}{alreadyUsed ? ' (already added)' : ''}
-                            </option>
-                          );
-                        })}
-                      </select>
+                        <span className="gp-item-picker-label">
+                          {it.item_code || 'Select item…'}
+                        </span>
+                        <span className="gp-item-picker-caret" aria-hidden="true">▾</span>
+                      </button>
                     </td>
                     <td>
                       <input
@@ -436,6 +442,26 @@ export default function GatePassForm() {
           {submitting ? 'Saving…' : 'Create Gate Pass & Generate Barcode'}
         </button>
       </form>
+
+      <ProductPickerModal
+        open={pickerRowIndex !== null}
+        products={products}
+        usedItemCodes={
+          pickerRowIndex !== null ? Array.from(usedItemCodesExcludingRow(pickerRowIndex)) : []
+        }
+        selectedItemCode={
+          pickerRowIndex !== null ? form.items[pickerRowIndex]?.item_code || '' : ''
+        }
+        onSelect={(p) => {
+          if (pickerRowIndex !== null) setItemFromProduct(pickerRowIndex, p);
+          setPickerRowIndex(null);
+        }}
+        onClear={() => {
+          if (pickerRowIndex !== null) clearItemProduct(pickerRowIndex);
+          setPickerRowIndex(null);
+        }}
+        onClose={() => setPickerRowIndex(null)}
+      />
     </div>
   );
 }
