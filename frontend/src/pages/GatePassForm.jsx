@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { getProducts, createGatePass } from '../api';
+import { useNavigate, useParams } from 'react-router-dom';
+import { getProducts, getGatePass, createGatePass, updateGatePass } from '../api';
 import { useAuth } from '../context/AuthContext';
 import ProductPickerModal from '../components/ProductPickerModal';
 import {
@@ -19,11 +19,16 @@ const emptyItem = () => ({ item_code: '', item_description: '', qty: 0, ref_doc_
 export default function GatePassForm() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { id: editId } = useParams();
+  const isEditMode = Boolean(editId);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingExisting, setLoadingExisting] = useState(isEditMode);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [createdGp, setCreatedGp] = useState(null);
+  const [updatedGp, setUpdatedGp] = useState(null);
+  const [originalNumber, setOriginalNumber] = useState('');
   const [importInfo, setImportInfo] = useState('');
   const [pickerRowIndex, setPickerRowIndex] = useState(null);
   const excelInputRef = useRef(null);
@@ -63,16 +68,65 @@ export default function GatePassForm() {
   }, []);
 
   useEffect(() => {
-    if (user && user.full_name && !form.prepared_by) {
+    if (!isEditMode && user && user.full_name && !form.prepared_by) {
       setForm((f) => ({ ...f, prepared_by: user.full_name }));
     }
-  }, [user]);
+  }, [user, isEditMode]);
 
   useEffect(() => {
-    if (createdGp) {
+    if (!isEditMode) return;
+    let cancelled = false;
+    (async () => {
+      setLoadingExisting(true);
+      setError('');
+      try {
+        const gp = await getGatePass(editId);
+        if (cancelled) return;
+        setOriginalNumber(gp.gp_number || '');
+        setForm({
+          pass_date: (gp.pass_date || today()).toString().slice(0, 10),
+          authorized_name: gp.authorized_name || '',
+          in_or_out: gp.in_or_out || 'out',
+          purpose_delivery: !!gp.purpose_delivery,
+          purpose_return: !!gp.purpose_return,
+          purpose_inter_warehouse: !!gp.purpose_inter_warehouse,
+          purpose_others: !!gp.purpose_others,
+          vehicle_type: gp.vehicle_type || '',
+          plate_no: gp.plate_no || '',
+          attention: gp.attention || '',
+          prepared_by: gp.prepared_by || '',
+          checked_by: gp.checked_by || '',
+          recommended_by: gp.recommended_by || '',
+          approved_by: gp.approved_by || '',
+          time_out: gp.time_out || '',
+          time_in: gp.time_in || '',
+          items:
+            gp.items && gp.items.length > 0
+              ? gp.items.map((it) => ({
+                  item_code: it.item_code || '',
+                  item_description: it.item_description || '',
+                  qty: it.qty ?? 0,
+                  ref_doc_no: it.ref_doc_no || '',
+                  destination: it.destination || '',
+                }))
+              : [emptyItem()],
+        });
+      } catch (e) {
+        if (!cancelled) setError(e.message || 'Could not load gate pass for editing.');
+      } finally {
+        if (!cancelled) setLoadingExisting(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [editId, isEditMode]);
+
+  useEffect(() => {
+    if (createdGp || updatedGp) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
-  }, [createdGp]);
+  }, [createdGp, updatedGp]);
 
   function addItem() {
     setForm((f) => ({ ...f, items: [...f.items, emptyItem()] }));
@@ -175,6 +229,7 @@ export default function GatePassForm() {
     setImportInfo('');
     setSubmitting(true);
     setCreatedGp(null);
+    setUpdatedGp(null);
     try {
       const payload = {
         pass_date: form.pass_date,
@@ -205,16 +260,22 @@ export default function GatePassForm() {
       };
       if (payload.items.length === 0) {
         setError('Add at least one item with description.');
+        setSubmitting(false);
         return;
       }
-      const result = await createGatePass(payload);
-      setCreatedGp(result);
-      setForm({
-        ...form,
-        items: [emptyItem()],
-      });
+      if (isEditMode) {
+        const result = await updateGatePass(editId, payload);
+        setUpdatedGp(result);
+      } else {
+        const result = await createGatePass(payload);
+        setCreatedGp(result);
+        setForm({
+          ...form,
+          items: [emptyItem()],
+        });
+      }
     } catch (e) {
-      setError(e.message || 'Failed to create gate pass');
+      setError(e.message || (isEditMode ? 'Failed to update gate pass' : 'Failed to create gate pass'));
     } finally {
       setSubmitting(false);
     }
@@ -248,19 +309,46 @@ export default function GatePassForm() {
     setForm(getInitialForm());
   }
 
-  if (loading) return <div className="encoding-loading">Loading…</div>;
+  if (loading || loadingExisting) {
+    return (
+      <div className="encoding-loading">
+        {loadingExisting ? 'Loading gate pass for editing…' : 'Loading…'}
+      </div>
+    );
+  }
 
   return (
     <div className="gatepass-form-page encoding-page">
-      <h1>Gate Pass Form</h1>
-      <p className="form-subtitle">CHERENZ GLOBAL MFG. INC.</p>
+      <h1>{isEditMode ? `Edit Gate Pass${originalNumber ? ` — GP#${originalNumber}` : ''}` : 'Gate Pass Form'}</h1>
+      <p className="form-subtitle">
+        {isEditMode
+          ? 'Editing a gate pass returns it to PENDING for a fresh approval cycle.'
+          : 'CHERENZ GLOBAL MFG. INC.'}
+      </p>
       {error && <div className="gp-error">{error}</div>}
-      {createdGp && (
+      {createdGp && !isEditMode && (
         <div className="gp-success-msg">
           <strong>Gate pass created:</strong> GP#{createdGp.gp_number}
           <div className="gp-success-buttons">
             <button type="button" onClick={() => navigate('/gatepass/print', { state: { gatePass: createdGp, variant: 'form' } })} className="btn-primary">Print form (with barcode)</button>
             <button type="button" onClick={createAnother} className="btn-secondary">Create another</button>
+          </div>
+        </div>
+      )}
+      {updatedGp && (
+        <div className="gp-success-msg">
+          <strong>Gate pass updated:</strong> GP#{updatedGp.gp_number} — status reset to <em>pending</em> for re-approval.
+          <div className="gp-success-buttons">
+            <button type="button" onClick={() => navigate('/gatepass/history')} className="btn-primary">
+              Back to History
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/gatepass/print', { state: { gatePass: updatedGp, variant: 'form' } })}
+              className="btn-secondary"
+            >
+              Print form (with barcode)
+            </button>
           </div>
         </div>
       )}
@@ -439,8 +527,23 @@ export default function GatePassForm() {
         </section>
 
         <button type="submit" className="gp-submit-btn" disabled={submitting}>
-          {submitting ? 'Saving…' : 'Create Gate Pass & Generate Barcode'}
+          {submitting
+            ? 'Saving…'
+            : isEditMode
+              ? 'Save changes (resets status to pending)'
+              : 'Create Gate Pass & Generate Barcode'}
         </button>
+        {isEditMode && (
+          <button
+            type="button"
+            className="btn-secondary"
+            style={{ marginLeft: '0.75rem' }}
+            onClick={() => navigate('/gatepass/history')}
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+        )}
       </form>
 
       <ProductPickerModal

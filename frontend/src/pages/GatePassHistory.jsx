@@ -1,13 +1,21 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
-import { getGatePasses, clearGatePassHistory } from '../api';
+import { getGatePasses, getGatePass, clearGatePassHistory } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { isAdminUser } from '../utils/roles';
 import './GatePassForm.css';
 import './Scan.css';
 
+function canEditGatePass(user) {
+  if (!user) return false;
+  const role = String(user.role || '').toLowerCase();
+  return role === 'admin' || role === 'encoding';
+}
+
 export default function GatePassHistory() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const showClearHistoryButton = isAdminUser(user);
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -54,8 +62,9 @@ export default function GatePassHistory() {
   const gp = viewGp;
 
   const listApprovedRejected = list.filter((g) => {
-    const s = (g.status || 'pending').toLowerCase();
-    return s === 'approved' || s === 'rejected';
+    // const s = (g.status || 'pending').toLowerCase();
+    // return s === 'approved' || s === 'rejected';
+    return true;
   });
 
   const searchLower = search.trim().toLowerCase();
@@ -156,7 +165,7 @@ export default function GatePassHistory() {
   return (
     <div className="gatepass-form-page encoding-page">
       <h1>Gate Pass History</h1>
-      <p className="form-subtitle">Approved and rejected gate passes (view only). For pending items, use <strong>For Approval</strong>.</p>
+      <p className="form-subtitle">Approved and rejected gate passes. For pending items, use <strong>For Approval</strong>. Edit returns a pass to pending for re-approval.</p>
       {error && <div className="gp-error">{error}</div>}
       <section className="gp-section">
         <div className="list-search-wrap">
@@ -224,16 +233,33 @@ export default function GatePassHistory() {
                     <td><span className={`gp-status gp-status-${(item.status || 'pending').toLowerCase()}`}>{item.status || 'pending'}</span></td>
                     <td>{item.rejected_remarks || '—'}</td>
                     <td>
-                      <button
-                        type="button"
-                        className="gp-btn-view"
-                        onClick={() => {
-                          setViewGp(item);
-                          setError('');
-                        }}
-                      >
-                        View
-                      </button>
+                      <div className="gp-row-actions">
+                        <button
+                          type="button"
+                          className="gp-btn-view"
+                          onClick={async () => {
+                            setError('');
+                            try {
+                              const full = await getGatePass(item.id);
+                              setViewGp(full);
+                            } catch (e) {
+                              setError(e.message || 'Could not load detail');
+                            }
+                          }}
+                        >
+                          View
+                        </button>
+                        {canEditGatePass(user) && (
+                          <button
+                            type="button"
+                            className="gp-btn-edit"
+                            onClick={() => navigate(`/gatepass/edit/${item.id}`)}
+                            title="Edit gate pass (resets status to pending)"
+                          >
+                            Edit
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -248,9 +274,21 @@ export default function GatePassHistory() {
           <div className="gp-modal" onClick={(e) => e.stopPropagation()}>
             <div className="gp-modal-header">
               <h2>Gate Pass: {gp.gp_number}</h2>
-              <button type="button" className="gp-modal-close" onClick={() => setViewGp(null)} aria-label="Close">
-                ×
-              </button>
+              <div className="gp-row-actions">
+                {canEditGatePass(user) && (
+                  <button
+                    type="button"
+                    className="gp-btn-edit gp-btn-edit-lg"
+                    onClick={() => navigate(`/gatepass/edit/${gp.id}`)}
+                    title="Edit gate pass (resets status to pending)"
+                  >
+                    Edit
+                  </button>
+                )}
+                <button type="button" className="gp-modal-close" onClick={() => setViewGp(null)} aria-label="Close">
+                  ×
+                </button>
+              </div>
             </div>
             <div className="gatepass-display gp-modal-body">
               <div className="gp-info">

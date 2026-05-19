@@ -65,6 +65,7 @@ function getPathSystem(pathname, userSystem) {
 
 function normalizePath(path) {
   if (path && path.startsWith('/transmittal/edit')) return '/transmittal';
+  if (path && path.startsWith('/gatepass/edit')) return '/gatepass';
   return path === '/gatepass/scan' ? '/gatepass/scan' : path === '/gatepass' ? '/gatepass' : path === '/gatepass/approval' ? '/gatepass/approval' : path === '/gatepass/history' ? '/gatepass/history' : path === '/gatepass/print' ? '/gatepass/print' : path === '/users' ? '/users' : path === '/products' ? '/products' : path === '/transmittal' ? '/transmittal' : path === '/transmittal/approval' ? '/transmittal/approval' : path === '/transmittal/history' ? '/transmittal/history' : path === '/transmittal/scan' ? '/transmittal/scan' : path === '/transmittal/departments' ? '/transmittal/departments' : path === '/transmittal/receptionist' ? '/transmittal/receptionist' : path === '/transmittal/recipient' ? '/transmittal/recipient' : path === '/transmittal/dropoff' ? '/transmittal/dropoff' : path === '/transmittal/print' ? '/transmittal/print' : '/gatepass';
 }
 

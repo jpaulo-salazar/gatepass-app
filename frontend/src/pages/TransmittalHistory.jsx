@@ -29,6 +29,43 @@ function scanEventLabel(eventType) {
   return labels[eventType] || eventType;
 }
 
+function formatExportDateTime(value) {
+  const s = formatIsoDateTimeDisplay(value);
+  return s === '—' ? '' : s;
+}
+
+/** First matching scan event (earliest in list order from API). */
+function firstScanEvent(events, types) {
+  const ev = (events || []).find((e) => types.includes(e.event_type));
+  if (!ev) return { at: '', by: '' };
+  return {
+    at: formatExportDateTime(ev.created_at),
+    by: (ev.user_full_name || '').trim(),
+  };
+}
+
+function transmittalTrackingForExport(t) {
+  const events = t.scan_events || [];
+  const dropOff = firstScanEvent(events, ['drop_off_scan']);
+  const receptionistScan = firstScanEvent(events, [
+    'receptionist_out_scan',
+    'receptionist_barcode_scanned',
+  ]);
+  const recipientScan = firstScanEvent(events, ['recipient_out_scan', 'recipient_barcode_scanned']);
+  return {
+    dropOffAt: dropOff.at,
+    dropOffBy: dropOff.by,
+    receptionistScanAt: receptionistScan.at,
+    receptionistScanBy: receptionistScan.by,
+    receptionistReceivedAt: formatExportDateTime(t.received_by_receptionist_at),
+    receptionistReceivedBy: (t.received_by_receptionist_name || '').trim(),
+    recipientScanAt: recipientScan.at,
+    recipientScanBy: recipientScan.by,
+    recipientReceivedAt: formatExportDateTime(t.received_by_recipient_at),
+    recipientReceivedBy: (t.received_by_recipient_name || '').trim(),
+  };
+}
+
 function canEditTransmittal(user, t) {
   if (!user || !t) return false;
   const role = String(user.role || '').toLowerCase();
@@ -76,8 +113,9 @@ export default function TransmittalHistory() {
   }
 
   const listApprovedRejected = list.filter((t) => {
-    const s = (t.status || 'pending').toLowerCase();
-    return s === 'approved' || s === 'rejected';
+    // const s = (t.status || 'pending').toLowerCase();
+    // return s === 'approved' || s === 'rejected';
+    return true;
   });
 
   const searchLower = search.trim().toLowerCase();
@@ -108,6 +146,12 @@ export default function TransmittalHistory() {
       'Approved by',
       'Date Approved',
       'Rejected remarks',
+      'Drop Off Scan Date/Time',
+      'Drop Off By',
+      'Receptionist Received Date/Time',
+      'Receptionist Received By',
+      'Recipient Received Date/Time',
+      'Recipient Received By',
       'Item Description',
       'Qty',
       'Ref. Doc No.',
@@ -115,6 +159,7 @@ export default function TransmittalHistory() {
     ];
     const rows = [];
     for (const t of filteredList) {
+      const track = transmittalTrackingForExport(t);
       const itemRows = [
         t.transmittal_number || '',
         t.transmittal_date || '',
@@ -128,6 +173,12 @@ export default function TransmittalHistory() {
         t.approved_by || '',
         t.date_approved || '',
         t.rejected_remarks || '',
+        track.dropOffAt,
+        track.dropOffBy,
+        track.receptionistReceivedAt,
+        track.receptionistReceivedBy,
+        track.recipientReceivedAt,
+        track.recipientReceivedBy,
       ];
       const items = t.items || [];
       if (items.length === 0) {

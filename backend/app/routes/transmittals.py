@@ -172,7 +172,8 @@ def list_transmittals(
             for r in rows:
                 cur.execute("SELECT * FROM transmittal_items WHERE transmittal_id = %s ORDER BY id", (r["id"],))
                 items = cur.fetchall()
-                result.append(_row_to_response(r, items))
+                ev = _fetch_scan_events(cur, r["id"])
+                result.append(_row_to_response(r, items, ev))
     return result
 
 

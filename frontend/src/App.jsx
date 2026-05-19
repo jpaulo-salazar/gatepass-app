@@ -35,6 +35,7 @@ function App() {
         }
       >
         <Route path="gatepass" element={<GatePassForm />} />
+        <Route path="gatepass/edit/:id" element={<GatePassForm />} />
         <Route path="gatepass/approval" element={<ForApproval />} />
         <Route path="gatepass/history" element={<GatePassHistory />} />
         <Route path="gatepass/print" element={<GatePassPrintPage />} />

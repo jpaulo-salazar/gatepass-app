@@ -106,6 +106,28 @@ class GatePassCreate(BaseModel):
     time_in: Optional[str] = None
     items: List[GatePassItemCreate]
 
+
+class GatePassUpdate(BaseModel):
+    """Edit an existing gate pass. Status resets to 'pending' on save."""
+    pass_date: date
+    authorized_name: str
+    in_or_out: str = "out"
+    purpose_delivery: bool = True
+    purpose_return: bool = False
+    purpose_inter_warehouse: bool = False
+    purpose_others: bool = False
+    vehicle_type: Optional[str] = None
+    plate_no: Optional[str] = None
+    attention: Optional[str] = None
+    prepared_by: Optional[str] = None
+    checked_by: Optional[str] = None
+    recommended_by: Optional[str] = None
+    approved_by: Optional[str] = None
+    time_out: Optional[str] = None
+    time_in: Optional[str] = None
+    items: List[GatePassItemCreate]
+
+
 class GatePassResponse(BaseModel):
     id: int
     gp_number: str

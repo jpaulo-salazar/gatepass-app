@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Header, HTTPException, Depends
 from app.database import get_db
 from app.document_series import KIND_GATE_PASS, allocate_yyyy_nnnn_number
-from app.schemas import GatePassCreate, GatePassResponse, GatePassItemResponse, GatePassStatusUpdate
+from app.schemas import GatePassCreate, GatePassUpdate, GatePassResponse, GatePassItemResponse, GatePassStatusUpdate
 from app.routes.users import get_current_user_id, require_system, role_required
 
 router = APIRouter(prefix="/gate-passes", tags=["gate-passes"])
@@ -142,6 +142,80 @@ def clear_gate_pass_history(
         "deleted": n,
         "message": "All gate passes removed. New passes will use the next sequence number (not reset to 0001).",
     }
+
+
+@router.put("/{gate_pass_id}", response_model=GatePassResponse)
+def update_gate_pass(
+    gate_pass_id: int,
+    body: GatePassUpdate,
+    authorization: str = Header(None, alias="Authorization"),
+    _=Depends(require_system("gatepass")),
+    __=Depends(role_required("encoding", "admin")),
+):
+    """Edit an existing gate pass. Resets status to 'pending' for re-approval."""
+    get_current_user_id(authorization)
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM gate_passes WHERE id = %s", (gate_pass_id,))
+            if not cur.fetchone():
+                raise HTTPException(status_code=404, detail="Gate pass not found")
+            in_out = (body.in_or_out or "out").strip().lower()[:10]
+            if in_out not in ("in", "out"):
+                in_out = "out"
+            cur.execute(
+                """UPDATE gate_passes SET
+                       pass_date = %s,
+                       authorized_name = %s,
+                       in_or_out = %s,
+                       purpose_delivery = %s,
+                       purpose_return = %s,
+                       purpose_inter_warehouse = %s,
+                       purpose_others = %s,
+                       vehicle_type = %s,
+                       plate_no = %s,
+                       attention = %s,
+                       prepared_by = %s,
+                       checked_by = %s,
+                       recommended_by = %s,
+                       approved_by = %s,
+                       time_out = %s,
+                       time_in = %s,
+                       status = 'pending',
+                       date_approved = NULL,
+                       rejected_remarks = NULL
+                   WHERE id = %s""",
+                (
+                    body.pass_date,
+                    body.authorized_name,
+                    in_out,
+                    int(body.purpose_delivery),
+                    int(body.purpose_return),
+                    int(body.purpose_inter_warehouse),
+                    int(body.purpose_others),
+                    body.vehicle_type,
+                    body.plate_no,
+                    body.attention,
+                    body.prepared_by,
+                    body.checked_by,
+                    body.recommended_by,
+                    body.approved_by,
+                    body.time_out,
+                    body.time_in,
+                    gate_pass_id,
+                ),
+            )
+            cur.execute("DELETE FROM gate_pass_items WHERE gate_pass_id = %s", (gate_pass_id,))
+            for it in body.items:
+                cur.execute(
+                    """INSERT INTO gate_pass_items (gate_pass_id, item_code, item_description, qty, ref_doc_no, destination)
+                       VALUES (%s, %s, %s, %s, %s, %s)""",
+                    (gate_pass_id, it.item_code, it.item_description, it.qty, it.ref_doc_no, it.destination),
+                )
+            cur.execute("SELECT * FROM gate_passes WHERE id = %s", (gate_pass_id,))
+            gp = cur.fetchone()
+            cur.execute("SELECT * FROM gate_pass_items WHERE gate_pass_id = %s ORDER BY id", (gate_pass_id,))
+            items = cur.fetchall()
+    return _row_to_response(gp, items)
 
 
 @router.post("", response_model=GatePassResponse)
