@@ -204,7 +204,8 @@ export default function Scan() {
                   disabled={!intransit || recording}
                 >
                   {/* Print release (with approved by) */}
-                  {gatePass.in_or_out === 'in' ? 'Receive' : 'Release'}
+                  {/* {gatePass.in_or_out === 'in' ? 'Received' : 'Release'} */}
+                  {'Release/Received'}
                 </button>
               </div>
             </>

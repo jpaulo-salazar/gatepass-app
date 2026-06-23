@@ -208,7 +208,7 @@ export default function TransmittalScan() {
                   disabled={!intransit || recording}
                 >
                   {/* Print release (with approved by) */}
-                  {'Receive'}
+                  {'Release/Received'}
                 </button>
               </div>
             </>
