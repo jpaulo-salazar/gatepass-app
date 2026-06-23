@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Html5Qrcode } from 'html5-qrcode';
-import { getTransmittalByNumber } from '../api';
+import { getTransmittalByNumber, recordTransmittalReleaseScan } from '../api';
+import IntransitScanSection from '../components/IntransitScanSection';
 import './Scan.css';
 
 const AUTO_LOOKUP_DELAY_MS = 500;
@@ -23,6 +24,8 @@ export default function TransmittalScan() {
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState('');
   const [transmittal, setTransmittal] = useState(null);
+  const [intransit, setIntransit] = useState('');
+  const [recording, setRecording] = useState(false);
   const [manualNum, setManualNum] = useState(() => location.state?.lookupNum || '');
   const scannerRef = useRef(null);
   const html5QrRef = useRef(null);
@@ -33,6 +36,7 @@ export default function TransmittalScan() {
     if (!num) return;
     setError('');
     setTransmittal(null);
+    setIntransit('');
     try {
       const data = await getTransmittalByNumber(num);
       setTransmittal(data);
@@ -97,9 +101,31 @@ export default function TransmittalScan() {
     fetchAndShow(manualNum);
   }
 
-  function handlePrintRelease() {
+  async function recordReleaseScan() {
+    if (!transmittal) return null;
+    if (!intransit) {
+      setError('Select an Intransit option before recording the scan.');
+      return null;
+    }
+    setRecording(true);
+    setError('');
+    try {
+      const updated = await recordTransmittalReleaseScan(transmittal.id, { intransit });
+      setTransmittal(updated);
+      return updated;
+    } catch (e) {
+      setError(e.message || 'Could not record scan');
+      return null;
+    } finally {
+      setRecording(false);
+    }
+  }
+
+  async function handlePrintRelease() {
     if (!transmittal) return;
-    navigate('/transmittal/print', { state: { transmittal, variant: 'release' } });
+    const updated = await recordReleaseScan();
+    if (!updated) return;
+    navigate('/transmittal/print', { state: { transmittal: updated, variant: 'release' } });
   }
 
   useEffect(() => {
@@ -168,9 +194,24 @@ export default function TransmittalScan() {
           </div>
 
           {isOut && approved && (
-            <div className="gp-actions">
-              <button type="button" onClick={handlePrintRelease} className="btn-primary">Print release (with approved by)</button>
-            </div>
+            <>
+              <IntransitScanSection
+                intransit={intransit}
+                onIntransitChange={setIntransit}
+                scanEvents={transmittal.scan_events}
+              />
+              <div className="gp-actions">
+                <button
+                  type="button"
+                  onClick={handlePrintRelease}
+                  className="btn-primary"
+                  disabled={!intransit || recording}
+                >
+                  {/* Print release (with approved by) */}
+                  {'Receive'}
+                </button>
+              </div>
+            </>
           )}
           {isOut && (transmittal.status === 'pending' || !transmittal.status) && (
             <p className="gp-scan-pending-msg">

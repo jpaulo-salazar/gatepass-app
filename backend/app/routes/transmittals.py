@@ -2,7 +2,9 @@ from datetime import datetime, date as date_type
 from fastapi import APIRouter, Header, HTTPException, Depends
 from app.database import get_db
 from app.document_series import KIND_TRANSMITTAL, allocate_yyyy_nnnn_number
+from app.intransit import EVENT_RELEASE_BARCODE_SCAN, normalize_intransit
 from app.schemas import (
+    BarcodeReleaseScanBody,
     TransmittalCreate,
     TransmittalUpdate,
     TransmittalResponse,
@@ -45,23 +47,32 @@ def _scan_event_from_row(r) -> TransmittalScanEventResponse:
         created_at=_dt_iso(r.get("created_at")) or "",
         user_id=r.get("user_id"),
         user_full_name=r.get("user_full_name"),
+        intransit=r.get("intransit"),
     )
 
 
 def _fetch_scan_events(cur, transmittal_id: int) -> list[TransmittalScanEventResponse]:
     cur.execute(
-        """SELECT id, event_type, created_at, user_id, user_full_name FROM transmittal_scan_events
-           WHERE transmittal_id = %s ORDER BY id ASC""",
+        """SELECT id, event_type, created_at, user_id, user_full_name, intransit
+           FROM transmittal_scan_events WHERE transmittal_id = %s ORDER BY id ASC""",
         (transmittal_id,),
     )
     return [_scan_event_from_row(x) for x in cur.fetchall()]
 
 
-def _insert_scan_event(cur, transmittal_id: int, event_type: str, user_id: int | None, user_full_name: str | None):
+def _insert_scan_event(
+    cur,
+    transmittal_id: int,
+    event_type: str,
+    user_id: int | None,
+    user_full_name: str | None,
+    intransit: str | None = None,
+):
     cur.execute(
-        """INSERT INTO transmittal_scan_events (transmittal_id, event_type, user_id, user_full_name)
-           VALUES (%s, %s, %s, %s)""",
-        (transmittal_id, event_type, user_id, user_full_name),
+        """INSERT INTO transmittal_scan_events
+           (transmittal_id, event_type, user_id, user_full_name, intransit)
+           VALUES (%s, %s, %s, %s, %s)""",
+        (transmittal_id, event_type, user_id, user_full_name, intransit),
     )
 
 
@@ -234,6 +245,32 @@ def get_transmittal(
     get_current_user_id(authorization)
     with get_db() as conn:
         with conn.cursor() as cur:
+            return _response_from_id(cur, transmittal_id, True)
+
+
+@router.post("/{transmittal_id}/release-barcode-scan", response_model=TransmittalResponse)
+def record_release_barcode_scan(
+    transmittal_id: int,
+    body: BarcodeReleaseScanBody,
+    authorization: str = Header(None, alias="Authorization"),
+    _=Depends(require_system("transmittal")),
+    __=Depends(role_required("scan_only", "encoding", "admin")),
+):
+    """Guard Scan Barcode page: record release scan with Intransit destination."""
+    user_id, fn = _auth_user_row(authorization)
+    intransit = normalize_intransit(body.intransit)
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM transmittals WHERE id = %s", (transmittal_id,))
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Transmittal not found")
+            if not _out_ok_for_scan(row):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Only approved OUT transmittals can be release-scanned.",
+                )
+            _insert_scan_event(cur, transmittal_id, EVENT_RELEASE_BARCODE_SCAN, user_id, fn, intransit)
             return _response_from_id(cur, transmittal_id, True)
 
 

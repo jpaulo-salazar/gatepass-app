@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Html5Qrcode } from 'html5-qrcode';
-import { getGatePassByNumber } from '../api';
+import { getGatePassByNumber, recordGatePassReleaseScan } from '../api';
+import IntransitScanSection from '../components/IntransitScanSection';
 import './Scan.css';
 
 const AUTO_LOOKUP_DELAY_MS = 500;
@@ -11,6 +12,8 @@ export default function Scan() {
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState('');
   const [gatePass, setGatePass] = useState(null);
+  const [intransit, setIntransit] = useState('');
+  const [recording, setRecording] = useState(false);
   const [manualGp, setManualGp] = useState(() => location.state?.lookupGp || '');
   const navigate = useNavigate();
   const scannerRef = useRef(null);
@@ -22,6 +25,7 @@ export default function Scan() {
     if (!num) return;
     setError('');
     setGatePass(null);
+    setIntransit('');
     try {
       const data = await getGatePassByNumber(num);
       setGatePass(data);
@@ -86,9 +90,31 @@ export default function Scan() {
     fetchAndShow(manualGp);
   }
 
-  function handlePrintRelease() {
+  async function recordReleaseScan() {
+    if (!gatePass) return null;
+    if (!intransit) {
+      setError('Select an Intransit option before recording the scan.');
+      return null;
+    }
+    setRecording(true);
+    setError('');
+    try {
+      const updated = await recordGatePassReleaseScan(gatePass.id, { intransit });
+      setGatePass(updated);
+      return updated;
+    } catch (e) {
+      setError(e.message || 'Could not record scan');
+      return null;
+    } finally {
+      setRecording(false);
+    }
+  }
+
+  async function handlePrintRelease() {
     if (!gatePass) return;
-    navigate('/gatepass/print', { state: { gatePass, variant: 'release' } });
+    const updated = await recordReleaseScan();
+    if (!updated) return;
+    navigate('/gatepass/print', { state: { gatePass: updated, variant: 'release' } });
   }
 
   function handlePrintReleasePOS() {
@@ -163,11 +189,25 @@ export default function Scan() {
             <p><strong>Time Out:</strong> {gatePass.time_out || '—'} <strong>Time In:</strong> {gatePass.time_in || '—'}</p>
             {gatePass.rejected_remarks && <p><strong>Rejection remarks:</strong> {gatePass.rejected_remarks}</p>}
           </div>
-          {(gatePass.status === 'approved') && (
-            <div className="gp-actions">
-              <button type="button" onClick={handlePrintRelease} className="btn-primary">Print release (with approved by)</button>
-              {/* <button type="button" onClick={handlePrintReleasePOS} className="btn-secondary">Print release (POS / thermal)</button> */}
-            </div>
+          {gatePass.status === 'approved' && (
+            <>
+              <IntransitScanSection
+                intransit={intransit}
+                onIntransitChange={setIntransit}
+                scanEvents={gatePass.scan_events}
+              />
+              <div className="gp-actions">
+                <button
+                  type="button"
+                  onClick={handlePrintRelease}
+                  className="btn-primary"
+                  disabled={!intransit || recording}
+                >
+                  {/* Print release (with approved by) */}
+                  {gatePass.in_or_out === 'in' ? 'Receive' : 'Release'}
+                </button>
+              </div>
+            </>
           )}
           {(gatePass.status === 'pending' || !gatePass.status) && (
             <p className="gp-scan-pending-msg">This gate pass is pending admin approval. Approve or reject from <strong>Gate Pass History</strong>.</p>

@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx';
 import { getGatePasses, getGatePass, clearGatePassHistory } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { isAdminUser } from '../utils/roles';
+import { allReleaseBarcodeScansForExport } from '../utils/scanExport';
 import './GatePassForm.css';
 import './Scan.css';
 
@@ -95,6 +96,9 @@ export default function GatePassHistory() {
       'Approved by',
       'Date Approved',
       'Rejected remarks',
+      'Barcode Scan Date/Time',
+      'Barcode Scanned By',
+      'Intransit',
       'Item Code',
       'Item Description',
       'Qty',
@@ -103,7 +107,9 @@ export default function GatePassHistory() {
     ];
     const rows = [];
     for (const g of filteredList) {
-      const itemRows = [
+      const allScans = allReleaseBarcodeScansForExport(g.scan_events);
+      const scanSets = allScans.length > 0 ? allScans : [{ scanAt: '', scannedBy: '', intransit: '' }];
+      const gpBase = [
         g.gp_number || '',
         g.pass_date || '',
         g.authorized_name || '',
@@ -118,18 +124,22 @@ export default function GatePassHistory() {
         g.rejected_remarks || '',
       ];
       const items = g.items || [];
-      if (items.length === 0) {
-        rows.push([...itemRows, '', '', '', '', '']);
-      } else {
-        for (const it of items) {
-          rows.push([
-            ...itemRows,
-            it.item_code || '',
-            it.item_description || '',
-            it.qty ?? '',
-            it.ref_doc_no || '',
-            it.destination || '',
-          ]);
+      for (const scan of scanSets) {
+        const scanCols = [scan.scanAt, scan.scannedBy, scan.intransit];
+        if (items.length === 0) {
+          rows.push([...gpBase, ...scanCols, '', '', '', '', '']);
+        } else {
+          for (const it of items) {
+            rows.push([
+              ...gpBase,
+              ...scanCols,
+              it.item_code || '',
+              it.item_description || '',
+              it.qty ?? '',
+              it.ref_doc_no || '',
+              it.destination || '',
+            ]);
+          }
         }
       }
     }

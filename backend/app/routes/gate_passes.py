@@ -1,12 +1,81 @@
 from fastapi import APIRouter, Header, HTTPException, Depends
 from app.database import get_db
 from app.document_series import KIND_GATE_PASS, allocate_yyyy_nnnn_number
-from app.schemas import GatePassCreate, GatePassUpdate, GatePassResponse, GatePassItemResponse, GatePassStatusUpdate
+from app.intransit import EVENT_RELEASE_BARCODE_SCAN, normalize_intransit
+from app.schemas import (
+    BarcodeReleaseScanBody,
+    GatePassCreate,
+    GatePassUpdate,
+    GatePassResponse,
+    GatePassItemResponse,
+    GatePassScanEventResponse,
+    GatePassStatusUpdate,
+)
 from app.routes.users import get_current_user_id, require_system, role_required
 
 router = APIRouter(prefix="/gate-passes", tags=["gate-passes"])
 
-def _row_to_response(gp_row, items_rows):
+
+def _dt_iso(val):
+    if val is None:
+        return None
+    if hasattr(val, "isoformat"):
+        return val.isoformat()
+    return str(val)
+
+
+def _scan_event_from_row(r) -> GatePassScanEventResponse:
+    return GatePassScanEventResponse(
+        id=r["id"],
+        event_type=r["event_type"],
+        created_at=_dt_iso(r.get("created_at")) or "",
+        user_id=r.get("user_id"),
+        user_full_name=r.get("user_full_name"),
+        intransit=r.get("intransit"),
+    )
+
+
+def _fetch_scan_events(cur, gate_pass_id: int) -> list[GatePassScanEventResponse]:
+    cur.execute(
+        """SELECT id, event_type, created_at, user_id, user_full_name, intransit
+           FROM gate_pass_scan_events WHERE gate_pass_id = %s ORDER BY id ASC""",
+        (gate_pass_id,),
+    )
+    return [_scan_event_from_row(x) for x in cur.fetchall()]
+
+
+def _insert_scan_event(
+    cur,
+    gate_pass_id: int,
+    event_type: str,
+    user_id: int | None,
+    user_full_name: str | None,
+    intransit: str | None = None,
+):
+    cur.execute(
+        """INSERT INTO gate_pass_scan_events
+           (gate_pass_id, event_type, user_id, user_full_name, intransit)
+           VALUES (%s, %s, %s, %s, %s)""",
+        (gate_pass_id, event_type, user_id, user_full_name, intransit),
+    )
+
+
+def _auth_user_row(authorization: str) -> tuple[int, str | None]:
+    uid_str = get_current_user_id(authorization)
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, full_name FROM users WHERE id = %s", (uid_str,))
+            row = cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=401, detail="User not found")
+    fn = row.get("full_name")
+    fn = (fn or "").strip() or None
+    return int(row["id"]), fn
+
+
+def _row_to_response(gp_row, items_rows, scan_events: list[GatePassScanEventResponse] | None = None):
+    if scan_events is None:
+        scan_events = []
     return GatePassResponse(
         id=gp_row["id"],
         gp_number=gp_row["gp_number"],
@@ -31,7 +100,8 @@ def _row_to_response(gp_row, items_rows):
         date_approved=gp_row.get("date_approved"),
         items=[GatePassItemResponse(id=r["id"], item_code=r["item_code"], item_description=r["item_description"],
                                     qty=r["qty"], ref_doc_no=r["ref_doc_no"], destination=r["destination"])
-               for r in items_rows]
+               for r in items_rows],
+        scan_events=scan_events,
     )
 
 @router.get("", response_model=list[GatePassResponse])
@@ -49,7 +119,8 @@ def list_gate_passes(
             for gp in passes:
                 cur.execute("SELECT * FROM gate_pass_items WHERE gate_pass_id = %s ORDER BY id", (gp["id"],))
                 items = cur.fetchall()
-                result.append(_row_to_response(gp, items))
+                ev = _fetch_scan_events(cur, gp["id"])
+                result.append(_row_to_response(gp, items, ev))
     return result
 
 @router.get("/by-number/{gp_number}", response_model=GatePassResponse)
@@ -63,7 +134,8 @@ def get_by_gp_number(gp_number: str, authorization: str = None):
                 raise HTTPException(status_code=404, detail="Gate pass not found")
             cur.execute("SELECT * FROM gate_pass_items WHERE gate_pass_id = %s ORDER BY id", (gp["id"],))
             items = cur.fetchall()
-    return _row_to_response(gp, items)
+            ev = _fetch_scan_events(cur, gp["id"])
+    return _row_to_response(gp, items, ev)
 
 @router.get("/{gate_pass_id}", response_model=GatePassResponse)
 def get_gate_pass(
@@ -81,7 +153,36 @@ def get_gate_pass(
                 raise HTTPException(status_code=404, detail="Gate pass not found")
             cur.execute("SELECT * FROM gate_pass_items WHERE gate_pass_id = %s ORDER BY id", (gate_pass_id,))
             items = cur.fetchall()
-    return _row_to_response(gp, items)
+            ev = _fetch_scan_events(cur, gate_pass_id)
+    return _row_to_response(gp, items, ev)
+
+
+@router.post("/{gate_pass_id}/release-barcode-scan", response_model=GatePassResponse)
+def record_release_barcode_scan(
+    gate_pass_id: int,
+    body: BarcodeReleaseScanBody,
+    authorization: str = Header(None, alias="Authorization"),
+    _=Depends(require_system("gatepass")),
+    __=Depends(role_required("scan_only", "encoding", "admin")),
+):
+    """Guard Scan Barcode page: record release scan with Intransit destination."""
+    user_id, fn = _auth_user_row(authorization)
+    intransit = normalize_intransit(body.intransit)
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM gate_passes WHERE id = %s", (gate_pass_id,))
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Gate pass not found")
+            if (row.get("status") or "").lower() != "approved":
+                raise HTTPException(status_code=400, detail="Only approved gate passes can be release-scanned.")
+            _insert_scan_event(cur, gate_pass_id, EVENT_RELEASE_BARCODE_SCAN, user_id, fn, intransit)
+            cur.execute("SELECT * FROM gate_passes WHERE id = %s", (gate_pass_id,))
+            gp = cur.fetchone()
+            cur.execute("SELECT * FROM gate_pass_items WHERE gate_pass_id = %s ORDER BY id", (gate_pass_id,))
+            items = cur.fetchall()
+            ev = _fetch_scan_events(cur, gate_pass_id)
+    return _row_to_response(gp, items, ev)
 
 
 @router.patch("/{gate_pass_id}/status", response_model=GatePassResponse)
@@ -122,7 +223,8 @@ def update_gate_pass_status(
             gp = cur.fetchone()
             cur.execute("SELECT * FROM gate_pass_items WHERE gate_pass_id = %s ORDER BY id", (gate_pass_id,))
             items = cur.fetchall()
-    return _row_to_response(gp, items)
+            ev = _fetch_scan_events(cur, gate_pass_id)
+    return _row_to_response(gp, items, ev)
 
 
 @router.post("/clear-history")
@@ -215,7 +317,8 @@ def update_gate_pass(
             gp = cur.fetchone()
             cur.execute("SELECT * FROM gate_pass_items WHERE gate_pass_id = %s ORDER BY id", (gate_pass_id,))
             items = cur.fetchall()
-    return _row_to_response(gp, items)
+            ev = _fetch_scan_events(cur, gate_pass_id)
+    return _row_to_response(gp, items, ev)
 
 
 @router.post("", response_model=GatePassResponse)

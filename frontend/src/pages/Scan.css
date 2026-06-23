@@ -226,3 +226,70 @@
   color: #2d3748;
   line-height: 1.5;
 }
+
+.gp-intransit-section {
+  margin: 1rem 0;
+  padding: 0.85rem 1rem;
+  background: #f0fff4;
+  border: 1px solid #9ae6b4;
+  border-radius: 8px;
+}
+
+.gp-intransit-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+}
+
+.gp-intransit-field {
+  min-width: 200px;
+  flex: 1;
+}
+
+.gp-intransit-field select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e0;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  background: #fff;
+}
+
+.gp-intransit-record-btn {
+  margin-bottom: 2px;
+}
+
+.gp-intransit-last-scan {
+  margin: 0.65rem 0 0;
+  font-size: 0.875rem;
+  color: #276749;
+}
+
+.gp-scan-log-table-wrap {
+  margin-top: 0.75rem;
+  overflow-x: auto;
+}
+
+.gp-scan-log-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.gp-scan-log-table th,
+.gp-scan-log-table td {
+  padding: 4px 8px;
+  text-align: left;
+  border-bottom: 1px solid #c6f6d5;
+}
+
+.gp-scan-log-table th {
+  background: #e6ffed;
+  font-weight: 600;
+  color: #22543d;
+}
+
+.gp-scan-log-table td {
+  color: #2d3748;
+}

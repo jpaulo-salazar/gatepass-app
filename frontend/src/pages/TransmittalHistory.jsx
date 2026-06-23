@@ -5,6 +5,7 @@ import { getTransmittals, getTransmittal, clearTransmittalHistory } from '../api
 import { useAuth } from '../context/AuthContext';
 import { isAdminUser } from '../utils/roles';
 import { formatIsoDateTimeDisplay } from '../utils/dateTime';
+import { allReleaseBarcodeScansForExport } from '../utils/scanExport';
 import './GatePassForm.css';
 import './Scan.css';
 
@@ -25,6 +26,7 @@ function scanEventLabel(eventType) {
     receptionist_marked_received: 'Receptionist marked received',
     recipient_barcode_scanned: 'Recipient / personnel scanned barcode',
     recipient_marked_received: 'Recipient / personnel marked received',
+    release_barcode_scan: 'Barcode scan (release / guard)',
   };
   return labels[eventType] || eventType;
 }
@@ -142,10 +144,14 @@ export default function TransmittalHistory() {
       'Status',
       'Vehicle Type',
       'Plate No.',
+      'Truck Seal No.',
       'Prepared by',
       'Approved by',
       'Date Approved',
       'Rejected remarks',
+      'Barcode Scan Date/Time',
+      'Barcode Scanned By',
+      'Intransit',
       'Drop Off Scan Date/Time',
       'Drop Off By',
       'Receptionist Received Date/Time',
@@ -160,7 +166,9 @@ export default function TransmittalHistory() {
     const rows = [];
     for (const t of filteredList) {
       const track = transmittalTrackingForExport(t);
-      const itemRows = [
+      const allScans = allReleaseBarcodeScansForExport(t.scan_events);
+      const scanSets = allScans.length > 0 ? allScans : [{ scanAt: '', scannedBy: '', intransit: '' }];
+      const tBase = [
         t.transmittal_number || '',
         t.transmittal_date || '',
         t.recipient_name || '',
@@ -169,10 +177,13 @@ export default function TransmittalHistory() {
         t.status || 'pending',
         t.vehicle_type || '',
         t.plate_no || '',
+        t.truck_seal_no || '',
         t.prepared_by || '',
         t.approved_by || '',
         t.date_approved || '',
         t.rejected_remarks || '',
+      ];
+      const trackCols = [
         track.dropOffAt,
         track.dropOffBy,
         track.receptionistReceivedAt,
@@ -181,17 +192,22 @@ export default function TransmittalHistory() {
         track.recipientReceivedBy,
       ];
       const items = t.items || [];
-      if (items.length === 0) {
-        rows.push([...itemRows, '', '', '', '']);
-      } else {
-        for (const it of items) {
-          rows.push([
-            ...itemRows,
-            it.item_description || '',
-            it.qty ?? '',
-            it.ref_doc_no || '',
-            it.destination || '',
-          ]);
+      for (const scan of scanSets) {
+        const scanCols = [scan.scanAt, scan.scannedBy, scan.intransit];
+        if (items.length === 0) {
+          rows.push([...tBase, ...scanCols, ...trackCols, '', '', '', '']);
+        } else {
+          for (const it of items) {
+            rows.push([
+              ...tBase,
+              ...scanCols,
+              ...trackCols,
+              it.item_description || '',
+              it.qty ?? '',
+              it.ref_doc_no || '',
+              it.destination || '',
+            ]);
+          }
         }
       }
     }
@@ -391,6 +407,7 @@ export default function TransmittalHistory() {
                           {' — '}
                           {formatIsoDateTimeDisplay(ev.created_at)}
                           {ev.user_full_name ? ` — ${ev.user_full_name}` : ''}
+                          {ev.intransit ? ` — Intransit: ${ev.intransit}` : ''}
                         </li>
                       ))}
                     </ol>

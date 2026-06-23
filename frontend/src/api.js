@@ -126,7 +126,14 @@ export async function getGatePass(id) {
   return api(`/gate-passes/${id}`, { headers: getAuthHeader() });
 }
 export async function getGatePassByNumber(gpNumber) {
-  return api(`/gate-passes/by-number/${encodeURIComponent(gpNumber)}`);
+  return api(`/gate-passes/by-number/${encodeURIComponent(gpNumber)}`, { headers: getAuthHeader() });
+}
+export async function recordGatePassReleaseScan(id, { intransit }) {
+  return api(`/gate-passes/${id}/release-barcode-scan`, {
+    method: 'POST',
+    body: JSON.stringify({ intransit }),
+    headers: getAuthHeader(),
+  });
 }
 export async function createGatePass(data) {
   return api('/gate-passes', { method: 'POST', body: JSON.stringify(data), headers: getAuthHeader() });
@@ -167,6 +174,13 @@ export async function getTransmittal(id) {
 export async function getTransmittalByNumber(transmittalNumber) {
   const headers = { ...getAuthHeader() };
   return api(`/transmittals/by-number/${encodeURIComponent(transmittalNumber)}`, { headers });
+}
+export async function recordTransmittalReleaseScan(id, { intransit }) {
+  return api(`/transmittals/${id}/release-barcode-scan`, {
+    method: 'POST',
+    body: JSON.stringify({ intransit }),
+    headers: getAuthHeader(),
+  });
 }
 export async function recordTransmittalOutBarcodeScan(id, { phase, recipient_department_id, recipient_department, recipient_user_id } = {}) {
   return api(`/transmittals/${id}/out-barcode-scan`, {

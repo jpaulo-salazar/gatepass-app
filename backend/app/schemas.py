@@ -128,6 +128,15 @@ class GatePassUpdate(BaseModel):
     items: List[GatePassItemCreate]
 
 
+class GatePassScanEventResponse(BaseModel):
+    id: int
+    event_type: str
+    created_at: str
+    user_id: Optional[int] = None
+    user_full_name: Optional[str] = None
+    intransit: Optional[str] = None
+
+
 class GatePassResponse(BaseModel):
     id: int
     gp_number: str
@@ -151,6 +160,12 @@ class GatePassResponse(BaseModel):
     rejected_remarks: Optional[str] = None
     date_approved: Optional[date] = None
     items: List[GatePassItemResponse]
+    scan_events: List[GatePassScanEventResponse] = Field(default_factory=list)
+
+
+class BarcodeReleaseScanBody(BaseModel):
+    intransit: str
+
 
 class GatePassStatusUpdate(BaseModel):
     status: str
@@ -180,6 +195,7 @@ class TransmittalScanEventResponse(BaseModel):
     created_at: str
     user_id: Optional[int] = None
     user_full_name: Optional[str] = None
+    intransit: Optional[str] = None
 
 
 class TransmittalCreate(BaseModel):
