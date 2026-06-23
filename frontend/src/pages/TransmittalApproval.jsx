@@ -216,7 +216,7 @@ export default function TransmittalApproval() {
                   <>
                     <button type="button" onClick={handleApprove} className="btn-primary" disabled={statusLoading}>Approve</button>
                     <button type="button" onClick={handleReject} className="btn-reject" disabled={statusLoading}>Reject</button>
-                    {canEditTransmittal(user, t) && (
+                    {/* {canEditTransmittal(user, t) && (
                       <button
                         type="button"
                         className="gp-btn-edit gp-btn-edit-lg"
@@ -226,7 +226,7 @@ export default function TransmittalApproval() {
                       >
                         Edit
                       </button>
-                    )}
+                    )} */}
                   </>
                 ) : (
                   <div className="reject-remarks-wrap">

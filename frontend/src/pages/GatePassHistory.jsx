@@ -4,9 +4,24 @@ import * as XLSX from 'xlsx';
 import { getGatePasses, getGatePass, clearGatePassHistory } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { isAdminUser } from '../utils/roles';
+import { formatIsoDateTimeDisplay } from '../utils/dateTime';
 import { allReleaseBarcodeScansForExport } from '../utils/scanExport';
 import './GatePassForm.css';
 import './Scan.css';
+
+function scanEventLabel(eventType) {
+  const labels = {
+    drop_off_scan: 'Drop off recorded (optional)',
+    receptionist_out_scan: 'Receptionist scan (received)',
+    recipient_out_scan: 'Recipient scan (received)',
+    receptionist_barcode_scanned: 'Receptionist scanned barcode',
+    receptionist_marked_received: 'Receptionist marked received',
+    recipient_barcode_scanned: 'Recipient / personnel scanned barcode',
+    recipient_marked_received: 'Recipient / personnel marked received',
+    release_barcode_scan: 'Barcode scan (release / guard)',
+  };
+  return labels[eventType] || eventType;
+}
 
 function canEditGatePass(user) {
   if (!user) return false;
@@ -324,6 +339,22 @@ export default function GatePassHistory() {
                 {gp.rejected_remarks && <p><strong>Rejection remarks:</strong> {gp.rejected_remarks}</p>}
                 {gp.status === 'approved' && gp.approved_by && <p><strong>Approved by:</strong> {gp.approved_by}</p>}
                 {gp.status === 'approved' && gp.date_approved && <p><strong>Date approved:</strong> {gp.date_approved}</p>}
+                {(gp.scan_events || []).length > 0 && (
+                  <div className="transmittal-scan-log">
+                    <h3>OUT — Scan &amp; receipt log</h3>
+                    <ol className="transmittal-scan-log-list">
+                      {(gp.scan_events || []).map((ev) => (
+                        <li key={ev.id}>
+                          <strong>{scanEventLabel(ev.event_type)}</strong>
+                          {' — '}
+                          {formatIsoDateTimeDisplay(ev.created_at)}
+                          {ev.user_full_name ? ` — ${ev.user_full_name}` : ''}
+                          {ev.intransit ? ` — Intransit: ${ev.intransit}` : ''}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
               </div>
               <table className="gp-items-table">
                 <thead>
